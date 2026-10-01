@@ -366,6 +366,7 @@ const pd=s=>{const[y,m,d]=s.split('-').map(Number);return new Date(y,m-1,d)};
 const fd=d=>d.toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit',year:'2-digit'});
 const MES=['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
 const ST={venc:'Vencida',d7:'Vence em 7 dias',d30:'Vence em 30 dias',ok:'Em dia'};
+const dchip=p=>(p.discs||[p.disc]).map(d=>`<span class="disc" style="color:${DC[d]}">${d}</span>`).join('<span class="hint"> + </span>');
 const DC={'Mecânica':'var(--mec)','Elétrica':'var(--ele)','Automação':'var(--aut)'};
 const css=v=>getComputedStyle(document.documentElement).getPropertyValue(v).trim();
 const M=Object.fromEntries(DATA.machines.map(m=>[m.id,m]));
@@ -415,7 +416,7 @@ fillMaq();
  document.addEventListener('keydown',e=>{if(e.key==='Escape'&&!pop.hidden){abrir(false);b.focus()}});
 })();
 const mOk=m=>(!F.area||m.area===F.area)&&(!F_MAQ.size||F_MAQ.has(m.id))&&(!F.crit||m.crit===F.crit);
-const plans=()=>DATA.plans.filter(p=>mOk(p.mm)&&(!F.disc||p.disc===F.disc));
+const plans=()=>DATA.plans.filter(p=>mOk(p.mm)&&(!F.disc||(p.discs||[p.disc]).includes(F.disc)));
 [['#fArea','area'],['#fCrit','crit'],['#fDisc','disc']].forEach(([s,k])=>$(s).addEventListener('change',e=>{F[k]=e.target.value;if(k==='area')fillMaq();render()}));
 
 // tabs (âncora #visao, #calendario... para rotação na TV)
@@ -441,7 +442,7 @@ function kpis(P){
  ].map(([k,l,v,s])=>`<div class="kpi ${k}"><span class="l">${l}</span><span class="v">${v}</span><span class="s">${s}</span></div>`).join('');
 }
 
-function itemHTML(p,extra=''){return `<div class="aitem"><span class="t">${p.mm.tag}</span><span class="d">${p.at}${p.real?'<span class="real">REAL</span>':''}<small>${p.comp}</small><small><span class="disc" style="color:${DC[p.disc]}">${p.disc}</span> · ${p.freq} · ${extra||fd(p.prox)}${p.f90?` · <span class="fx">${p.f90} falhas/90d</span>`:''}</small></span>${pill(p.st)}</div>`}
+function itemHTML(p,extra=''){return `<div class="aitem"><span class="t">${p.mm.tag}</span><span class="d">${p.at}${p.real?'<span class="real">REAL</span>':''}<small>${p.comp}</small><small>${dchip(p)} · ${p.freq} · ${extra||fd(p.prox)}${p.f90?` · <span class="fx">${p.f90} falhas/90d</span>`:''}</small></span>${pill(p.st)}</div>`}
 function alist(P){
  const L=P.filter(p=>p.dias<=7).sort((a,b)=>b.prio-a.prio||a.dias-b.dias);
  $('#aCount').textContent=`${L.length} itens · ordem de prioridade`;
@@ -473,7 +474,7 @@ $('#hojeM').onclick=()=>{calM=new Date(T0.getFullYear(),T0.getMonth(),1);selDay=
 
 // máquinas
 function machines(){
- const P=DATA.plans.filter(p=>!F.disc||p.disc===F.disc);
+ const P=DATA.plans.filter(p=>!F.disc||(p.discs||[p.disc]).includes(F.disc));
  $('#mgrid').innerHTML=DATA.machines.filter(m=>(!F.area||m.area===F.area)&&(!F.crit||m.crit===F.crit)).sort((a,b)=>a.area.localeCompare(b.area)||a.tag.localeCompare(b.tag)).map(m=>{
   const L=P.filter(p=>p.m===m.id);const v=L.filter(p=>p.st==='venc').length,s7=L.filter(p=>p.st==='d7').length;
   const cov=new Set(L.map(p=>p.rg)).size;const pc=Math.round(100*cov/m.ncomp);
@@ -502,7 +503,7 @@ function table(P){
  $('#thead').querySelectorAll('th').forEach(th=>th.toggleAttribute('aria-sort',th.dataset.k===sortK));
  $('#tCount').textContent=`${L.length} planos`;
  if(!DATA.plans.length){$('#tCount').textContent='0 planos';$('#tbody').innerHTML='<tr><td colspan="11" class="empty">Nenhum plano das envasadoras cadastrado ainda na aba Preventiva. Cadastre TAG, RG, ATIVIDADE e FREQ. para o plano aparecer aqui.</td></tr>';return}
- $('#tbody').innerHTML=L.map(p=>`<tr><td class="num"><b>${p.mm.tag}</b></td><td class="w">${p.comp}<div class="hint num">RG ${p.rg}</div></td><td class="w">${p.at}${p.real?'<span class="real">REAL</span>':''}</td><td>${p.tipo}</td><td>${p.freq}</td><td class="disc" style="color:${DC[p.disc]}">${p.disc}</td><td><span class="crit ${p.mm.crit}">${p.mm.crit}</span></td><td class="num">${p.ult?fd(pd(p.ult)):'<span class="hint">sem registro</span>'}</td><td class="num">${fd(p.prox)}</td><td class="num">${p.dias}</td><td class="num">${p.os||'–'}</td></tr>`).join('')||'<tr><td colspan="11" class="empty">Nenhum plano encontrado com esses filtros.</td></tr>';
+ $('#tbody').innerHTML=L.map(p=>`<tr><td class="num"><b>${p.mm.tag}</b></td><td class="w">${p.comp}<div class="hint num">RG ${p.rg}</div></td><td class="w">${p.at}${p.real?'<span class="real">REAL</span>':''}</td><td>${p.tipo}</td><td>${p.freq}</td><td>${dchip(p)}</td><td><span class="crit ${p.mm.crit}">${p.mm.crit}</span></td><td class="num">${p.ult?fd(pd(p.ult)):'<span class="hint">sem registro</span>'}</td><td class="num">${fd(p.prox)}</td><td class="num">${p.dias}</td><td class="num">${p.os||'–'}</td></tr>`).join('')||'<tr><td colspan="11" class="empty">Nenhum plano encontrado com esses filtros.</td></tr>';
  // status pill column inline via Dias color
  $('#tbody').querySelectorAll('tr').forEach((tr,i)=>{const p=L[i];if(p){tr.children[9].innerHTML=`${pill(p.st)} <span class="num">${p.dias}</span>`}});
 }
@@ -521,11 +522,11 @@ function pkFill(){const s=$('#pkM'),fm=[...F_MAQ][0]||'',v=s.value||fm;const ms=
  s.value=ms.some(m=>m.id===(fm||v))?(fm||v):(best?best[0]:'')}
 function pacote(){
  const id=$('#pkM').value,j=+$('#pkJ').value,so=$('#pkR').value==='p';
- const L=DATA.plans.filter(p=>p.m===id&&p.dias<=j&&(!F.disc||p.disc===F.disc)&&(!so||p.cond==='Parada')).sort((a,b)=>b.prio-a.prio);
- const h=d=>L.filter(p=>!d||p.disc===d).reduce((a,p)=>a+p.h,0);
+ const L=DATA.plans.filter(p=>p.m===id&&p.dias<=j&&(!F.disc||(p.discs||[p.disc]).includes(F.disc))&&(!so||p.cond==='Parada')).sort((a,b)=>b.prio-a.prio);
+ const h=d=>L.filter(p=>!d||(p.discs||[p.disc]).includes(d)).reduce((a,p)=>a+p.h,0);
  $('#pkK').innerHTML=[['br','Atividades',L.length,`${L.filter(p=>p.st==='venc').length} já vencidas`],['','Horas totais',f1(h()),'soma das horas estimadas'],['','Mecânica',f1(h('Mecânica'))+' h',''],['','Elétrica',f1(h('Elétrica'))+' h',''],['','Automação',f1(h('Automação'))+' h',''],['','Máquina parada',L.filter(p=>p.cond==='Parada').length,'atividades que exigem parada']]
   .map(([k,l,v,s])=>`<div class="kpi ${k}"><span class="l">${l}</span><span class="v">${v}</span><span class="s">${s}</span></div>`).join('');
- $('#pkT').innerHTML=L.map(p=>`<tr><td><span class="prio${p.prio>=4?' hi':''}">${f1(p.prio)}</span></td><td class="w">${p.comp}<div class="hint num">RG ${p.rg}${p.f90?` · <span class="fx">${p.f90} falhas/90d</span>`:''}</div></td><td class="w">${p.at}<div class="hint">${p.cond==='Parada'?'Máquina parada':'Máquina rodando'}</div></td><td>${pill(p.st)}<div class="hint num">${fd(p.prox)}</div></td><td class="disc" style="color:${DC[p.disc]}">${p.disc}</td><td class="num">${f1(p.h)}</td><td>${p.mat||'–'}</td></tr>`).join('')||'<tr><td colspan="7" class="empty">Nada para adiantar nesta janela.</td></tr>';
+ $('#pkT').innerHTML=L.map(p=>`<tr><td><span class="prio${p.prio>=4?' hi':''}">${f1(p.prio)}</span></td><td class="w">${p.comp}<div class="hint num">RG ${p.rg}${p.f90?` · <span class="fx">${p.f90} falhas/90d</span>`:''}</div></td><td class="w">${p.at}<div class="hint">${p.cond==='Parada'?'Máquina parada':'Máquina rodando'}</div></td><td>${pill(p.st)}<div class="hint num">${fd(p.prox)}</div></td><td>${dchip(p)}</td><td class="num">${f1(p.h)}</td><td>${p.mat||'–'}</td></tr>`).join('')||'<tr><td colspan="7" class="empty">Nada para adiantar nesta janela.</td></tr>';
  const mt={};L.forEach(p=>{if(p.mat)p.mat.split(';').forEach(x=>{x=x.trim();mt[x]=(mt[x]||0)+1})});
  $('#pkMat').innerHTML=Object.entries(mt).sort((a,b)=>b[1]-a[1]).map(([k,v])=>`<li>${k} <span class="hint">· ${v} atividade${v>1?'s':''}</span></li>`).join('')||'<li class="empty">Nenhum material cadastrado para estas atividades.</li>';
  const C=DATA.comp.filter(c=>c.m===id).slice(0,8);
@@ -605,7 +606,7 @@ const hm2=m=>{const x=(m+390)%1440;return String(Math.floor(x/60)).padStart(2,'0
 const dur=m=>m>=60?`${Math.floor(m/60)}h${m%60?String(m%60).padStart(2,'0'):''}`:`${m} min`;
 const EVN={CIP:'CIP',SETUP:'Setup',ENXAGUE:'Enxágue','PARADA SEM CIP':'Parada (sem CIP)','SEM PRODUÇÃO':'Sem produção',LIMPEZA:'Limpeza',TESTE:'Teste',PARADA:'Parada'};
 function caber(mid,min){ // preventivas da máquina, vencendo em 15 dias, por prioridade, até encher a janela
- const L=DATA.plans.filter(p=>p.m===mid&&p.dias<=15&&(!F.disc||p.disc===F.disc)).sort((a,b)=>(b.cond==='Parada')-(a.cond==='Parada')||b.prio-a.prio);
+ const L=DATA.plans.filter(p=>p.m===mid&&p.dias<=15&&(!F.disc||(p.discs||[p.disc]).includes(F.disc))).sort((a,b)=>(b.cond==='Parada')-(a.cond==='Parada')||b.prio-a.prio);
  const out=[];let used=0;const cap=min==null?30:min*.9;
  for(const p of L){if(used+p.h*60<=cap){out.push(p);used+=p.h*60}}return{out,used,tot:L.length}}
 function progTab(){
@@ -677,7 +678,7 @@ function drawCharts(){
   const O=occ(P,T0.getTime(),T0.getTime()+56*DAY-1);
   const cap={'Mecânica':+$('#capM').value||0,'Elétrica':+$('#capE').value||0,'Automação':+$('#capA').value||0};
   const capT=F.disc?cap[F.disc]:cap['Mecânica']+cap['Elétrica']+cap['Automação'];
-  charts.push(new Chart($('#cCarga'),{data:{labels:wk.map(d=>'Sem '+d.toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'})),datasets:[...D.map((d,i)=>({type:'bar',label:d,backgroundColor:DCo[i],borderRadius:2,stack:'c',data:wk.map((w,j)=>+O.filter(o=>o.p.disc===d&&Math.floor((o.d-T0)/DAY/7)===j).reduce((a,o)=>a+o.p.h,0).toFixed(1))})),
+  charts.push(new Chart($('#cCarga'),{data:{labels:wk.map(d=>'Sem '+d.toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'})),datasets:[...D.map((d,i)=>({type:'bar',label:d,backgroundColor:DCo[i],borderRadius:2,stack:'c',data:wk.map((w,j)=>+O.filter(o=>(o.p.discs||[o.p.disc]).includes(d)&&Math.floor((o.d-T0)/DAY/7)===j).reduce((a,o)=>a+o.p.h,0).toFixed(1))})),
     {type:'line',label:'Capacidade',data:wk.map(()=>capT),borderColor:'#fff',borderDash:[6,4],borderWidth:1.5,pointRadius:0,datalabels:{display:false}}]},
    options:{maintainAspectRatio:false,plugins:{legend:{display:false},datalabels:{...dl,formatter:v=>v>=1?Math.round(v):''}},scales:{x:{stacked:true,grid:{display:false}},y:{stacked:true,grid:{color:grid},title:{display:true,text:'horas'}}}}}));
   charts.push(aderChart($('#cAder'),E,ink,grid,dl));
