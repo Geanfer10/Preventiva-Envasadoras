@@ -92,6 +92,19 @@ def maquinas(df):
     return ms, comps
 
 
+def deptos(txt_):
+    """'Mecânica / Elétrica', 'Elétrica/Manutenção', 'MEC+ELE'... -> ['Mecânica', 'Elétrica'] (ordem fixa)."""
+    t = norm(txt_)
+    out = []
+    if 'MEC' in t or 'MANUT' in t:
+        out.append('Mecânica')
+    if 'ELE' in t:
+        out.append('Elétrica')
+    if 'AUT' in t:
+        out.append('Automação')
+    return out or ['Mecânica']
+
+
 def ler_planos(xlsx, base, ms):
     p = pd.read_excel(xlsx, sheet_name='Preventiva')
     c = {k: col(p, *v) for k, v in dict(
@@ -128,7 +141,7 @@ def ler_planos(xlsx, base, ms):
         cond = norm(txt(r[c['cond']])) if c['cond'] else ''
         planos.append(dict(id=chave, m=mid, rg=rg, comp=txt(r[c['comp']]) if c['comp'] else '', at=at,
                            tipo=txt(r[c['tipo']]) if c['tipo'] else '', freq=freq or f'{per} dias', per=per,
-                           disc=disc if disc in ('Mecânica', 'Elétrica', 'Automação') else (disc or 'Mecânica'),
+                           discs=deptos(disc), disc=' + '.join(deptos(disc)),
                            h=(num(r[c['h']]) if c['h'] else None) or 0, cond='Parada' if 'PARADA' in cond else 'Rodando',
                            mat=txt(r[c['mat']]) if c['mat'] else '', base=txt(r[c['base']]) if c['base'] else 'Dias',
                            ult0=dt(r[c['ult']]) if c['ult'] else None, os=txt(r[c['os']]) if c['os'] else '', real=False))
