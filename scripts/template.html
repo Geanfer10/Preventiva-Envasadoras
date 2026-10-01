@@ -203,6 +203,24 @@ tr.det:hover td{background:var(--bg)}
 .ev.ag{border-left-color:#7A4FC9;background:color-mix(in srgb,#7A4FC9 14%,var(--surface));font-weight:600}
 .p-ag{color:#7A4FC9;background:color-mix(in srgb,#7A4FC9 15%,transparent)}
 .agline{font-size:12.5px;color:#7A4FC9;font-weight:600;margin-top:4px}
+.modal-bg{position:fixed;inset:0;z-index:100;background:rgba(10,20,14,.55);display:flex;align-items:flex-start;justify-content:center;padding:calc(24px + env(safe-area-inset-top,0px)) 16px 24px;overflow:auto}
+.modal{background:var(--surface);color:var(--ink);border-radius:12px;width:min(820px,100%);box-shadow:0 20px 60px rgba(0,0,0,.35);display:flex;flex-direction:column;max-height:calc(100vh - 48px)}
+.modal-h{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;padding:16px 18px;border-bottom:1px solid var(--line)}
+.modal-h h3{margin:0;font:700 22px var(--f-disp);letter-spacing:.02em;text-transform:uppercase}
+#dlgX{background:var(--bg);border:1px solid var(--line);border-radius:8px;width:36px;height:36px;font-size:22px;line-height:1;color:var(--ink)}
+.modal-b{padding:14px 18px 18px;overflow:auto;display:flex;flex-direction:column;gap:14px}
+.dsum{display:flex;flex-wrap:wrap;gap:8px}
+.dsum span{background:var(--bg);border:1px solid var(--line);border-radius:999px;padding:4px 10px;font-size:13px}
+.dsum b{font-family:var(--f-num)}
+.dmaq{font:700 15px var(--f-disp);letter-spacing:.03em;text-transform:uppercase;border-bottom:2px solid var(--line);padding-bottom:4px}
+.dcard{border:1px solid var(--line);border-left:5px solid var(--ok);border-radius:8px;padding:10px 12px;display:flex;flex-direction:column;gap:8px}
+.dcard.venc{border-left-color:var(--venc)}.dcard.d7{border-left-color:var(--d7)}.dcard.d30{border-left-color:var(--d30)}.dcard.ag{border-left-color:#7A4FC9}
+.dcard-h{display:flex;justify-content:space-between;gap:8px;align-items:flex-start;flex-wrap:wrap}
+.dcard-h b{font-size:15px}
+.dgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:6px 14px;font-size:13px}
+.dgrid .dl{display:block;font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+.dgrid div b{font-weight:600}
+body.lock{overflow:hidden}
 /* quality */
 .qgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:12px}
 .qcard{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:14px}
@@ -358,6 +376,12 @@ tr.det:hover td{background:var(--bg)}
   <div class="qgrid" id="qgrid"></div>
  </section>
 </main>
+<div id="dlg" class="modal-bg" hidden>
+ <div class="modal" role="dialog" aria-modal="true" aria-labelledby="dlgT">
+  <div class="modal-h"><div><h3 id="dlgT"></h3><div class="hint" id="dlgS"></div></div><button type="button" id="dlgX" aria-label="Fechar">×</button></div>
+  <div id="dlgB" class="modal-b"></div>
+ </div>
+</div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/chartjs-plugin-datalabels/2.2.0/chartjs-plugin-datalabels.min.js"></script>
@@ -460,6 +484,33 @@ function alist(P){
 // calendário
 let calM=new Date(T0.getFullYear(),T0.getMonth(),1),selDay=null;
 function occ(P,a,b){const out=[];P.forEach(p=>{let t=p.prox.getTime();const step=p.per*DAY;if(t<a){const k=Math.ceil((a-t)/step);t+=k*step}for(;t<=b;t+=step){const d=new Date(t);const dd=Math.round((d-T0)/DAY);out.push({p,d,st:p.st==='venc'&&t===p.prox.getTime()?'venc':(dd<0?'ok':stat(dd))})}});return out}
+// janela de detalhes do dia
+const STX={ag:'Agendada',venc:'Vencida',d7:'Vence em 7 dias',d30:'Vence em 30 dias',ok:'Programada'};
+function fecharDlg(){$('#dlg').hidden=true;document.body.classList.remove('lock')}
+$('#dlgX').onclick=fecharDlg;
+$('#dlg').addEventListener('click',e=>{if(e.target.id==='dlg')fecharDlg()});
+document.addEventListener('keydown',e=>{if(e.key==='Escape'&&!$('#dlg').hidden)fecharDlg()});
+function abrirDia(d,L){
+ $('#dlgT').textContent=d.toLocaleDateString('pt-BR',{weekday:'long',day:'2-digit',month:'long',year:'numeric'});
+ if(!L.length){$('#dlgS').textContent='';$('#dlgB').innerHTML='<div class="empty">Nenhuma preventiva programada ou agendada para este dia.</div>'}
+ else{
+  const h=L.reduce((a,o)=>a+(o.p.h||0),0);
+  const hd={};L.forEach(o=>(o.p.discs||[o.p.disc]).forEach(x=>hd[x]=(hd[x]||0)+(o.p.h||0)));
+  const cnt={};L.forEach(o=>cnt[o.st]=(cnt[o.st]||0)+1);
+  $('#dlgS').textContent=`${L.length} atividade${L.length>1?'s':''} · ${f1(h)} h estimadas`;
+  const sum=`<div class="dsum">${Object.entries(cnt).map(([k,v])=>`<span class="pill p-${k}">${v} ${STX[k].toLowerCase()}${v>1&&k!=='venc'&&k!=='ok'?'':''}</span>`).join('')}${Object.entries(hd).map(([k,v])=>`<span><b style="color:${DC[k]}">${k}</b> · <b>${f1(v)} h</b></span>`).join('')}</div>`;
+  const porM={};L.forEach(o=>(porM[o.p.m]=porM[o.p.m]||[]).push(o));
+  const pe=p=>{const e=EX.filter(x=>x.p.id===p.id&&x.e).sort((a,b)=>b.e-a.e)[0];return e};
+  const linha=o=>{const p=o.p,ag=agDe(p)[0],u=pe(p);
+   const it=[['Componente',p.comp],['RG',p.rg],['Tipo',p.tipo||'–'],['Frequência',p.freq],['Departamento',dchip(p)],['Horas estimadas',p.h?f1(p.h)+' h':'<span class="hint">não informado</span>'],
+    ['Condição',p.cond==='Parada'?'Máquina parada':'Máquina rodando'],['Materiais',p.mat||'–'],['Última execução',p.ult?fd(pd(p.ult)):'<span class="hint">sem registro</span>'],
+    ['Próximo vencimento',fd(p.prox)+(p.dias<0?` <span style="color:var(--venc)">(${-p.dias}d atrasada)</span>`:'')],['Última OS',u&&u.os||p.os||'–'],
+    ['Agendamento',ag?`<b style="color:#7A4FC9">${fd(ag.pr)}</b>`:'–'],['Falhas 90 dias',p.f90?`<span class="fx">${p.f90}</span>`:'0'],['Prioridade',`<span class="prio${p.prio>=4?' hi':''}">${f1(p.prio)}</span>`]];
+   return `<div class="dcard ${o.st}"><div class="dcard-h"><b>${p.at}</b><span class="pill p-${o.st}">${STX[o.st]}</span></div><div class="dgrid">${it.map(([l,v])=>`<div><span class="dl">${l}</span><b>${v}</b></div>`).join('')}</div></div>`};
+  $('#dlgB').innerHTML=sum+Object.entries(porM).map(([m,os])=>`<div class="dmaq">${M[m].tag} · ${M[m].nome} <span class="hint" style="text-transform:none;letter-spacing:0">· ${M[m].area} · crit. ${M[m].crit} · ${os.length} atividade${os.length>1?'s':''}</span></div>${os.map(linha).join('')}`).join('');
+ }
+ $('#dlg').hidden=false;document.body.classList.add('lock');$('#dlgX').focus();
+}
 function cal(P){
  $('#calTitle').textContent=`${MES[calM.getMonth()]} ${calM.getFullYear()}`;
  const start=new Date(calM);start.setDate(1-((calM.getDay()+6)%7));
@@ -470,7 +521,7 @@ function cal(P){
  for(let i=0;i<42;i++){const d=new Date(start.getTime()+i*DAY);const k=d.toDateString();const L=(byD[k]||[]).sort((a,b)=>r[a.st]-r[b.st]);
   h+=`<button class="day${d.getMonth()!==calM.getMonth()?' out':''}${+d===+T0?' today':''}${selDay&&k===selDay.toDateString()?' sel':''}" data-d="${d.getTime()}" aria-label="${fd(d)}: ${L.length} atividades"><span class="n">${d.getDate()}${L.length?`<b>${L.length}</b>`:''}</span>${L.slice(0,3).map(o=>`<span class="ev ${o.st}">${o.st==='ag'?'◆ ':''}${o.p.mm.tag} ${o.p.at}</span>`).join('')}${L.length>3?`<span class="more">+${L.length-3}</span>`:''}</button>`}
  $('#cal').innerHTML=h;
- $('#cal').querySelectorAll('.day').forEach(b=>b.onclick=()=>{selDay=new Date(+b.dataset.d);cal(plans())});
+ $('#cal').querySelectorAll('.day').forEach(b=>b.onclick=()=>{selDay=new Date(+b.dataset.d);cal(plans());const k=selDay.toDateString();abrirDia(selDay,(byD[k]||[]).slice().sort((a,b)=>r[a.st]-r[b.st]))});
  const sd=selDay||T0;const L=(byD[sd.toDateString()]||[]).sort((a,b)=>r[a.st]-r[b.st]);
  $('#dayTitle').textContent=sd.toLocaleDateString('pt-BR',{weekday:'short',day:'2-digit',month:'short'});
  $('#dayHours').textContent=L.length?`${L.length} atividades · ${L.reduce((a,o)=>a+o.p.h,0).toFixed(1)} h`:'';
