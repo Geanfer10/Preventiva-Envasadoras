@@ -199,6 +199,10 @@ tr.det:hover td{background:var(--bg)}
 .mlist input{accent-color:var(--brand);width:16px;height:16px}
 .mlist b{font-family:var(--f-num);min-width:44px}
 .mcard.sel{outline:2px solid var(--brand)}
+.agchip{display:inline-block;font:600 11px var(--f-body);color:#fff;background:#7A4FC9;border-radius:4px;padding:1px 6px;margin-left:4px;white-space:nowrap}
+.ev.ag{border-left-color:#7A4FC9;background:color-mix(in srgb,#7A4FC9 14%,var(--surface));font-weight:600}
+.p-ag{color:#7A4FC9;background:color-mix(in srgb,#7A4FC9 15%,transparent)}
+.agline{font-size:12.5px;color:#7A4FC9;font-weight:600;margin-top:4px}
 /* quality */
 .qgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:12px}
 .qcard{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:14px}
@@ -280,7 +284,7 @@ tr.det:hover td{background:var(--bg)}
   <div class="cal-wrap">
    <div class="panel">
     <div class="panel-h"><div class="cal-h"><button id="prevM" aria-label="Mês anterior">‹</button><h2 id="calTitle"></h2><button id="nextM" aria-label="Próximo mês">›</button><button id="hojeM">Hoje</button></div>
-     <div class="legend" style="color:var(--muted)"><span><i style="background:var(--venc)"></i>Vencida</span><span><i style="background:var(--d7)"></i>≤ 7 dias</span><span><i style="background:var(--d30)"></i>≤ 30 dias</span><span><i style="background:var(--ok)"></i>Programada</span></div></div>
+     <div class="legend" style="color:var(--muted)"><span><i style="background:#7A4FC9"></i>Agendada</span><span><i style="background:var(--venc)"></i>Vencida</span><span><i style="background:var(--d7)"></i>≤ 7 dias</span><span><i style="background:var(--d30)"></i>≤ 30 dias</span><span><i style="background:var(--ok)"></i>Programada</span></div></div>
     <div class="cal-grid" id="cal"></div>
    </div>
    <div class="panel"><div class="panel-h"><h2 id="dayTitle">Dia</h2><span class="hint" id="dayHours"></span></div><div class="alist" id="dayList"></div></div>
@@ -380,6 +384,10 @@ const FR={};DATA.comp.forEach(c=>{FR[c.rg]=(FR[c.rg]||0)+c.f});
 const HASP=new Set(DATA.plans.map(p=>p.rg));
 DATA.plans.forEach(p=>{p.f90=FR[p.rg]||0;p.prio=Math.round(10*(p.mm.crit==='A'?2:1)*(1+Math.max(0,-p.dias)/p.per)*(1+Math.log10(1+p.f90)))/10});
 const ESX={prazo:'No prazo',atraso:'Com atraso',nao:'Não executada',aberta:'Em aberto'};
+const AGD=EX.filter(e=>e.s==='aberta');                       // preventivas agendadas (Execuções sem data executada)
+const agDe=p=>AGD.filter(e=>e.p.id===p.id).sort((a,b)=>a.pr-b.pr);
+const agNoDia=(mid,dstr)=>AGD.filter(e=>e.p.m===mid&&e.pr.toDateString()===dstr);
+const agChip=p=>{const a=agDe(p)[0];return a?` <span class="agchip" title="Agendada na aba Execuções">Agendada ${fd(a.pr)}</span>`:''};
 const MESC=k=>MES[+k.slice(5)-1].slice(0,3);
 const LASTM=DATA.meses[DATA.meses.length-1];
 const exs=P=>{const s=new Set(P.map(p=>p.id));return EX.filter(e=>s.has(e.p.id))};
@@ -442,10 +450,10 @@ function kpis(P){
  ].map(([k,l,v,s])=>`<div class="kpi ${k}"><span class="l">${l}</span><span class="v">${v}</span><span class="s">${s}</span></div>`).join('');
 }
 
-function itemHTML(p,extra=''){return `<div class="aitem"><span class="t">${p.mm.tag}</span><span class="d">${p.at}${p.real?'<span class="real">REAL</span>':''}<small>${p.comp}</small><small>${dchip(p)} · ${p.freq} · ${extra||fd(p.prox)}${p.f90?` · <span class="fx">${p.f90} falhas/90d</span>`:''}</small></span>${pill(p.st)}</div>`}
+function itemHTML(p,extra=''){return `<div class="aitem"><span class="t">${p.mm.tag}</span><span class="d">${p.at}${agChip(p)}<small>${p.comp}</small><small>${dchip(p)} · ${p.freq} · ${extra||fd(p.prox)}${p.f90?` · <span class="fx">${p.f90} falhas/90d</span>`:''}</small></span>${pill(p.st)}</div>`}
 function alist(P){
- const L=P.filter(p=>p.dias<=7).sort((a,b)=>b.prio-a.prio||a.dias-b.dias);
- $('#aCount').textContent=`${L.length} itens · ordem de prioridade`;
+ const ag7=new Set(AGD.filter(e=>(e.pr-T0)/DAY<=7).map(e=>e.p.id));const L=P.filter(p=>p.dias<=7||ag7.has(p.id)).sort((a,b)=>b.prio-a.prio||a.dias-b.dias);
+ $('#aCount').textContent=`${L.length} itens · ordem de prioridade${ag7.size?` · ${ag7.size} agendada${ag7.size>1?'s':''}`:''}`;
  $('#alist').innerHTML=L.length?L.map(p=>itemHTML(p,`<span class="prio${p.prio>=4?' hi':''}" title="Prioridade = criticidade × atraso × falhas recentes do componente">${f1(p.prio)}</span> ${fd(p.prox)} · ${dtxt(p.dias)}`)).join(''):'<div class="empty">Nada atrasado ou para os próximos 7 dias.</div>';
 }
 
@@ -456,17 +464,17 @@ function cal(P){
  $('#calTitle').textContent=`${MES[calM.getMonth()]} ${calM.getFullYear()}`;
  const start=new Date(calM);start.setDate(1-((calM.getDay()+6)%7));
  const end=new Date(start.getTime()+41*DAY);
- const O=occ(P,start.getTime(),end.getTime()+DAY-1);const byD={};O.forEach(o=>{const k=o.d.toDateString();(byD[k]=byD[k]||[]).push(o)});
- const r={venc:0,d7:1,d30:2,ok:3};
+ const ids=new Set(P.map(p=>p.id));const O=occ(P,start.getTime(),end.getTime()+DAY-1).concat(AGD.filter(e=>ids.has(e.p.id)&&e.pr>=start&&e.pr<=end).map(e=>({p:e.p,d:e.pr,st:'ag'})));const byD={};O.forEach(o=>{const k=o.d.toDateString();(byD[k]=byD[k]||[]).push(o)});
+ const r={ag:-1,venc:0,d7:1,d30:2,ok:3};
  let h=['Seg','Ter','Qua','Qui','Sex','Sáb','Dom'].map(d=>`<div class="dow">${d}</div>`).join('');
  for(let i=0;i<42;i++){const d=new Date(start.getTime()+i*DAY);const k=d.toDateString();const L=(byD[k]||[]).sort((a,b)=>r[a.st]-r[b.st]);
-  h+=`<button class="day${d.getMonth()!==calM.getMonth()?' out':''}${+d===+T0?' today':''}${selDay&&k===selDay.toDateString()?' sel':''}" data-d="${d.getTime()}" aria-label="${fd(d)}: ${L.length} atividades"><span class="n">${d.getDate()}${L.length?`<b>${L.length}</b>`:''}</span>${L.slice(0,3).map(o=>`<span class="ev ${o.st}">${o.p.mm.tag} ${o.p.at}</span>`).join('')}${L.length>3?`<span class="more">+${L.length-3}</span>`:''}</button>`}
+  h+=`<button class="day${d.getMonth()!==calM.getMonth()?' out':''}${+d===+T0?' today':''}${selDay&&k===selDay.toDateString()?' sel':''}" data-d="${d.getTime()}" aria-label="${fd(d)}: ${L.length} atividades"><span class="n">${d.getDate()}${L.length?`<b>${L.length}</b>`:''}</span>${L.slice(0,3).map(o=>`<span class="ev ${o.st}">${o.st==='ag'?'◆ ':''}${o.p.mm.tag} ${o.p.at}</span>`).join('')}${L.length>3?`<span class="more">+${L.length-3}</span>`:''}</button>`}
  $('#cal').innerHTML=h;
  $('#cal').querySelectorAll('.day').forEach(b=>b.onclick=()=>{selDay=new Date(+b.dataset.d);cal(plans())});
  const sd=selDay||T0;const L=(byD[sd.toDateString()]||[]).sort((a,b)=>r[a.st]-r[b.st]);
  $('#dayTitle').textContent=sd.toLocaleDateString('pt-BR',{weekday:'short',day:'2-digit',month:'short'});
  $('#dayHours').textContent=L.length?`${L.length} atividades · ${L.reduce((a,o)=>a+o.p.h,0).toFixed(1)} h`:'';
- $('#dayList').innerHTML=L.length?L.map(o=>itemHTML(o.p,`${o.p.h} h`)).join(''):'<div class="empty">Nenhuma atividade neste dia.</div>';
+ $('#dayList').innerHTML=L.length?L.map(o=>o.st==='ag'?itemHTML(o.p,`<b style="color:#7A4FC9">Agendada para este dia</b> · ${o.p.h} h`).replace(/<span class="pill p-[a-z0-9]+">[^<]*<\/span><\/div>$/,'<span class="pill p-ag">Agendada</span></div>'):itemHTML(o.p,`${o.p.h} h`)).join(''):'<div class="empty">Nenhuma atividade neste dia.</div>';
 }
 $('#prevM').onclick=()=>{calM=new Date(calM.getFullYear(),calM.getMonth()-1,1);cal(plans())};
 $('#nextM').onclick=()=>{calM=new Date(calM.getFullYear(),calM.getMonth()+1,1);cal(plans())};
@@ -612,7 +620,7 @@ function caber(mid,min){ // preventivas da máquina, vencendo em 15 dias, por pr
 function progTab(){
  const ds=Object.keys(DATA.progs||{}).sort();const sel=$('#pgDate');if(sel.options.length!==ds.length){sel.innerHTML=ds.slice().reverse().map(d=>`<option value="${d}">${pd(d).toLocaleDateString('pt-BR',{weekday:'short',day:'2-digit',month:'2-digit'})}</option>`).join('');sel.onchange=progTab}
  const G=(DATA.progs||{})[sel.value]||DATA.prog;if(!G){$('#pgTitle').textContent='Programação';$('#pgSub').textContent='Nenhuma programação carregada.';return}
- const dt=pd(G.data),dd=Math.round((dt-T0)/DAY);
+ const dt=pd(G.data),dd=Math.round((dt-T0)/DAY),dstr=dt.toDateString();
  $('#pgTitle').textContent='Programação de '+dt.toLocaleDateString('pt-BR',{weekday:'long',day:'2-digit',month:'2-digit'});
  $('#pgSub').textContent=`Programação de Produção Diária do PCP · emitida ${G.emissao} · janelas calculadas pelos horários de cada turno (06:30 · 14:35 · 22:35)`;
  $('#pgWhen').textContent=dd===0?'Hoje':dd===1?'Amanhã':dd<0?`Há ${-dd} dia(s)`:`Em ${dd} dias`;
@@ -627,7 +635,7 @@ function progTab(){
  const AL=on.filter(id=>G.maquinas[id].horas>=20&&venc(id)>0);
  $('#pgK').innerHTML=[['br','Programadas',`${on.length}/${ids.length}`,'envasadoras com produção no dia'],['ok','Sem programação',off.length,off.length?'dia inteiro livre para preventiva':'todas rodam'],
   ['d7','Janelas com duração',Jd.length,`somam ${dur(Jd.reduce((a,j)=>a+j.min,0))} de máquina parada`],['br','Preventivas que cabem',nfit,`${f1(hfit)} h de execução nas janelas`],
-  ['venc','Atenção',AL.length,'rodam o dia todo com vencidas'],['','Eventos sem duração',J.filter(j=>j.min==null).length,'sem horário no PDF e sem duração padrão']]
+  ['venc','Atenção',AL.length,'rodam o dia todo com vencidas'],['','Agendadas no dia',ids.reduce((a,id)=>a+agNoDia(id,dstr).length,0),'preventivas lançadas para esta data']]
   .map(([k,l,v,s])=>`<div class="kpi ${k}"><span class="l">${l}</span><span class="v">${v}</span><span class="s">${s}</span></div>`).join('');
  // linha do tempo
  const pc=m=>(m/1440*100).toFixed(2)+'%';
@@ -639,12 +647,13 @@ function progTab(){
    d.janelas.forEach(j=>{if(j.min!=null){const ev=!['SEM PRODUÇÃO','PARADA SEM CIP'].includes(j.tipo);segs+=`<div class="gseg ${ev?'ev':'livre'}" style="left:${pc(j.ini)};width:${pc(j.min)}" title="${EVN[j.tipo]||j.tipo} · ${hm2(j.ini)}–${hm2(j.fim)} (${dur(j.min)}${j.padrao?', duração padrão':''})">${j.min>=120?EVN[j.tipo]||j.tipo:''}</div>`}
     else segs+=`<div class="gmark" style="left:calc(${pc([0,0,485,965][j.t])} + 4px)" title="${EVN[j.tipo]||j.tipo} no turno ${j.t} (duração não informada)"></div>`});}
   segs+=[485,965].map(x=>`<div class="gsep" style="left:${pc(x)}"></div>`).join('');
-  g+=`<div class="grow"><div class="glab"><b>${m.tag}</b> <span>${m.nome}</span></div><div class="gbar${d?'':' off'}">${d?segs:''}</div><div class="gmeta">${d?f1(d.horas)+' h prog.':'—'}${venc(id)?`<br><span style="color:var(--venc)">${venc(id)} vencida${venc(id)>1?'s':''}</span>`:''}</div></div>`});
+  g+=`<div class="grow"><div class="glab"><b>${m.tag}</b> <span>${m.nome}</span></div><div class="gbar${d?'':' off'}">${d?segs:''}</div><div class="gmeta">${d?f1(d.horas)+' h prog.':'—'}${(()=>{const a=agNoDia(id,dstr);return a.length?`<br><span style="color:#7A4FC9" title="${a.map(e=>e.p.at).join(', ')}">${a.length} agendada${a.length>1?'s':''}</span>`:''})()}${venc(id)?`<br><span style="color:var(--venc)">${venc(id)} vencida${venc(id)>1?'s':''}</span>`:''}</div></div>`});
  $('#pgG').innerHTML=g;
  // janelas
  const card=(id,j,c,dia)=>{const m=M[id];const tipo=dia?'Dia inteiro sem programação':(EVN[j.tipo]||j.tipo);
   const quando=dia?'06:30–06:30':`Turno ${j.t} · ${hm2(j.ini)}–${hm2(j.fim)} · ${dur(j.min)}${j.padrao?' (padrão)':''}`;
-  return `<div class="jcard ${dia?'dia':['SEM PRODUÇÃO','PARADA SEM CIP'].includes(j.tipo)?'livre':''}"><h4><span>${m.tag} · ${tipo}</span><small>${quando}</small></h4>
+  const ag=agNoDia(id,dstr);
+  return `<div class="jcard ${dia?'dia':['SEM PRODUÇÃO','PARADA SEM CIP'].includes(j.tipo)?'livre':''}"><h4><span>${m.tag} · ${tipo}</span><small>${quando}</small></h4>${ag.length?`<div class="agline">Agendado para este dia: ${ag.map(e=>`${e.p.at} (${f1(e.p.h)} h)`).join(' · ')}</div>`:''}
   ${c.out.length?`<ul>${c.out.map(p=>`<li>${p.at} <span class="hint">· ${p.comp.slice(0,48)} · ${f1(p.h)} h · ${p.st==='venc'?'<b style="color:var(--venc)">vencida</b>':'vence '+fd(p.prox)}</span></li>`).join('')}</ul><div class="hint" style="margin-top:4px">${c.out.length} de ${c.tot} preventivas próximas cabem · ${f1(c.used/60)} h${dia?'':` de ${f1(j.min/60)} h`}</div>`:`<div class="hint" style="margin-top:4px">${c.tot?'Nenhuma preventiva próxima cabe nesse tempo.':'Nenhuma preventiva vence nos próximos 15 dias.'}</div>`}
   ${dia?`<button class="lnk" data-pk="${id}">Abrir pacote de parada completo</button>`:''}</div>`};
  const sorted=[...Jd].sort((a,b)=>b.min-a.min);
