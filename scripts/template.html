@@ -182,6 +182,23 @@ tr.det:hover td{background:var(--bg)}
 .jcard h4 small{font:600 12.5px var(--f-num);color:var(--muted);text-transform:none}
 .jcard ul{margin:6px 0 0;padding-left:18px;font-size:13px;display:flex;flex-direction:column;gap:3px}
 .jcard .lnk{background:none;border:0;color:var(--brand);font-weight:600;padding:0;margin-top:6px;text-decoration:underline}
+.msel{position:relative;display:flex;flex-direction:column;gap:2px}
+.mlab{font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+#fMaq{font:500 14px var(--f-body);color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:6px;padding:6px 28px 6px 8px;min-width:190px;max-width:260px;text-align:left;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;position:relative}
+#fMaq::after{content:"▾";position:absolute;right:9px;top:50%;transform:translateY(-50%);color:var(--muted)}
+#fMaq.on{border-color:var(--brand);box-shadow:inset 0 0 0 1px var(--brand)}
+.mpop{position:absolute;top:100%;left:0;margin-top:4px;z-index:40;background:var(--surface);border:1px solid var(--line);border-radius:8px;box-shadow:0 10px 30px rgba(0,0,0,.18);width:min(340px,calc(100vw - 32px))}
+.mpop-h,.mpop-f{display:flex;gap:8px;padding:8px 10px;border-bottom:1px solid var(--line)}
+.mpop-f{border-bottom:0;border-top:1px solid var(--line);justify-content:flex-end}
+.mpop-h button{background:none;border:0;color:var(--brand);font-weight:600;font-size:13px;padding:2px 4px}
+#mOk{background:var(--brand);color:#fff;border:0;border-radius:6px;padding:6px 16px;font-weight:600}
+.mlist{max-height:320px;overflow:auto;padding:4px 0}
+.mgrp{font-size:11px;letter-spacing:.07em;text-transform:uppercase;color:var(--muted);padding:8px 12px 2px}
+.filters .mlist label{flex-direction:row;display:flex;align-items:center;gap:8px;padding:5px 12px;font-size:13.5px;cursor:pointer;text-transform:none;letter-spacing:0;color:var(--ink)}
+.mlist label:hover{background:var(--brand-soft)}
+.mlist input{accent-color:var(--brand);width:16px;height:16px}
+.mlist b{font-family:var(--f-num);min-width:44px}
+.mcard.sel{outline:2px solid var(--brand)}
 /* quality */
 .qgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:12px}
 .qcard{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:14px}
@@ -204,7 +221,7 @@ tr.det:hover td{background:var(--bg)}
    </div>
    <div class="filters">
     <label for="fArea">Linha<select id="fArea"></select></label>
-    <label for="fMaq">Máquina<select id="fMaq"></select></label>
+    <div class="msel"><span class="mlab" id="fMaqLab">Máquina</span><button type="button" id="fMaq" aria-haspopup="true" aria-expanded="false" aria-labelledby="fMaqLab fMaq">Todas</button><div class="mpop" id="fMaqPop" hidden><div class="mpop-h"><button type="button" id="mAll">Marcar todas</button><button type="button" id="mNone">Limpar</button></div><div id="fMaqList" class="mlist"></div><div class="mpop-f"><button type="button" id="mOk">Aplicar</button></div></div></div>
     <label for="fCrit">Criticidade<select id="fCrit"><option value="">Todas</option><option>A</option><option>B</option></select></label>
     <label for="fDisc">Departamento<select id="fDisc"><option value="">Todas</option><option>Mecânica</option><option>Elétrica</option><option>Automação</option></select></label>
    </div>
@@ -378,12 +395,28 @@ $('#hoje').textContent=T0.toLocaleDateString('pt-BR',{weekday:'long',day:'2-digi
 
 // filtros
 const F={area:'',maq:'',crit:'',disc:''};
-function fillMaq(){const s=$('#fMaq'),v=F.maq;s.innerHTML='<option value="">Todas</option>'+DATA.machines.filter(m=>!F.area||m.area===F.area).map(m=>`<option value="${m.id}">${m.tag} · ${m.nome}</option>`).join('');s.value=DATA.machines.some(m=>m.id===v&&(!F.area||m.area===F.area))?v:'';F.maq=s.value}
+const F_MAQ=new Set();
+function rotMaq(){const n=F_MAQ.size,b=$('#fMaq');b.classList.toggle('on',n>0);b.textContent=!n?'Todas':n===1?(()=>{const m=M[[...F_MAQ][0]];return m.tag+' · '+m.nome})():n+' máquinas';b.title=n?[...F_MAQ].map(id=>M[id].tag+' '+M[id].nome).join(', '):'Todas as máquinas'}
+function fillMaq(){const vis=DATA.machines.filter(m=>!F.area||m.area===F.area);[...F_MAQ].forEach(id=>{if(!vis.some(m=>m.id===id))F_MAQ.delete(id)});
+ const areas=[...new Set(vis.map(m=>m.area))];
+ $('#fMaqList').innerHTML=areas.map(a=>`<div class="mgrp">${a}</div>`+vis.filter(m=>m.area===a).sort((x,y)=>x.tag.localeCompare(y.tag)).map(m=>`<label><input type="checkbox" value="${m.id}"${F_MAQ.has(m.id)?' checked':''}><b>${m.tag}</b>${m.nome}</label>`).join('')).join('');
+ rotMaq()}
 $('#fArea').innerHTML='<option value="">Todas</option>'+[...new Set(DATA.machines.map(m=>m.area))].map(a=>`<option>${a}</option>`).join('');
 fillMaq();
-const mOk=m=>(!F.area||m.area===F.area)&&(!F.maq||m.id===F.maq)&&(!F.crit||m.crit===F.crit);
+(function(){const b=$('#fMaq'),pop=$('#fMaqPop');
+ const abrir=v=>{pop.hidden=!v;b.setAttribute('aria-expanded',v)};
+ const aplicar=()=>{F_MAQ.clear();pop.querySelectorAll('input:checked').forEach(i=>F_MAQ.add(i.value));rotMaq();abrir(false);render()};
+ b.onclick=e=>{e.stopPropagation();if(pop.hidden){fillMaq();abrir(true)}else aplicar()};
+ $('#mAll').onclick=()=>pop.querySelectorAll('input').forEach(i=>i.checked=true);
+ $('#mNone').onclick=()=>pop.querySelectorAll('input').forEach(i=>i.checked=false);
+ $('#mOk').onclick=aplicar;
+ pop.addEventListener('click',e=>e.stopPropagation());
+ document.addEventListener('click',()=>{if(!pop.hidden)aplicar()});
+ document.addEventListener('keydown',e=>{if(e.key==='Escape'&&!pop.hidden){abrir(false);b.focus()}});
+})();
+const mOk=m=>(!F.area||m.area===F.area)&&(!F_MAQ.size||F_MAQ.has(m.id))&&(!F.crit||m.crit===F.crit);
 const plans=()=>DATA.plans.filter(p=>mOk(p.mm)&&(!F.disc||p.disc===F.disc));
-[['#fArea','area'],['#fMaq','maq'],['#fCrit','crit'],['#fDisc','disc']].forEach(([s,k])=>$(s).addEventListener('change',e=>{F[k]=e.target.value;if(k==='area')fillMaq();render()}));
+[['#fArea','area'],['#fCrit','crit'],['#fDisc','disc']].forEach(([s,k])=>$(s).addEventListener('change',e=>{F[k]=e.target.value;if(k==='area')fillMaq();render()}));
 
 // tabs (âncora #visao, #calendario... para rotação na TV)
 function tab(id){document.querySelectorAll('nav.tabs button').forEach(b=>b.setAttribute('aria-selected',b.dataset.tab===id));document.querySelectorAll('section.tab').forEach(s=>s.hidden=s.id!=='t-'+id);try{history.replaceState(null,'','#'+id)}catch(e){}drawCharts()}
@@ -447,13 +480,13 @@ function machines(){
   const nx=L.filter(p=>p.dias>=0).sort((a,b)=>a.dias-b.dias)[0];
   const cls=!L.length?'s-none':v?'s-venc':s7?'s-d7':'s-ok';
   const fa=DATA.fal[m.id]&&DATA.fal[m.id][LASTM];const mtbf=fa&&fa.f?(DATA.diasMes[LASTM]*24-fa.h)/fa.f:null;
-  return `<button class="mcard ${cls}${F.maq===m.id?' sel':''}" data-id="${m.id}"><div class="row"><span class="tg">${m.tag}</span><span class="crit ${m.crit}">${m.crit}</span></div>
+  return `<button class="mcard ${cls}${F_MAQ.has(m.id)?' sel':''}" data-id="${m.id}"><div class="row"><span class="tg">${m.tag}</span><span class="crit ${m.crit}">${m.crit}</span></div>
   <div><div class="nm">${m.nome}</div><div class="meta">${m.area} · ${m.linha}</div></div>
   <div class="mstats"><div><b class="num" style="color:${v?'var(--venc)':'inherit'}">${v}</b><span>Vencidas</span></div><div><b class="num">${s7}</b><span>7 dias</span></div><div><b class="num">${fa?fa.f:'–'}</b><span>Falhas ${MESC(LASTM)}</span></div></div>
   <div class="meta">${fa?`${f1(fa.h)} h paradas · MTBF ${f1(mtbf)} h`:'Sem registro na BASE_PCM'}</div>
   <div class="meta">Cobertura ${pc}% · ${cov}/${m.ncomp} componentes</div><div class="bar"><i style="width:${pc}%"></i></div>
   <div class="meta">${nx?`Próxima: <b>${fd(nx.prox)}</b> · ${nx.at}`:'Sem próxima programada'}</div></button>`}).join('');
- $('#mgrid').querySelectorAll('.mcard').forEach(b=>b.onclick=()=>{const m=M[b.dataset.id];F.area=m.area;$('#fArea').value=m.area;fillMaq();F.maq=m.id;$('#fMaq').value=m.id;render();tab('visao')});
+ $('#mgrid').querySelectorAll('.mcard').forEach(b=>b.onclick=()=>{const m=M[b.dataset.id];F.area=m.area;$('#fArea').value=m.area;F_MAQ.clear();F_MAQ.add(m.id);fillMaq();render();tab('visao')});
 }
 
 // tabela
@@ -482,10 +515,10 @@ function quality(){
 }
 
 // pacote de parada
-function pkFill(){const s=$('#pkM'),v=s.value||F.maq;const ms=DATA.machines.filter(m=>(!F.area||m.area===F.area)&&(!F.crit||m.crit===F.crit)&&DATA.plans.some(p=>p.m===m.id));
+function pkFill(){const s=$('#pkM'),fm=[...F_MAQ][0]||'',v=s.value||fm;const ms=DATA.machines.filter(m=>(!F.area||m.area===F.area)&&(!F.crit||m.crit===F.crit)&&DATA.plans.some(p=>p.m===m.id));
  s.innerHTML=ms.map(m=>`<option value="${m.id}">${m.tag} · ${m.nome}</option>`).join('');
  const best=ms.map(m=>[m.id,DATA.plans.filter(p=>p.m===m.id).reduce((a,p)=>a+(p.dias<=30?p.prio:0),0)]).sort((a,b)=>b[1]-a[1])[0];
- s.value=ms.some(m=>m.id===(F.maq||v))?(F.maq||v):(best?best[0]:'')}
+ s.value=ms.some(m=>m.id===(fm||v))?(fm||v):(best?best[0]:'')}
 function pacote(){
  const id=$('#pkM').value,j=+$('#pkJ').value,so=$('#pkR').value==='p';
  const L=DATA.plans.filter(p=>p.m===id&&p.dias<=j&&(!F.disc||p.disc===F.disc)&&(!so||p.cond==='Parada')).sort((a,b)=>b.prio-a.prio);
