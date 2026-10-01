@@ -87,7 +87,8 @@ def ler_pagina(W, texto):
         turnos = []
         for t, (xa, xb) in COLS.items():
             cw = sorted([w for w in band if xa <= w['x0'] < xb], key=lambda w: (round(w['top'] / 4), w['x0']))
-            horas = [w['text'] for w in cw if re.fullmatch(r'\d{2}:\d{2}', w['text'])]
+            # horários: o da esquerda é o início e o da direita o fim (a altura varia meio ponto entre eles)
+            horas = [w['text'] for w in sorted(cw, key=lambda w: w['x0']) if re.fullmatch(r'\d{2}:\d{2}', w['text'])]
             st = next((sem_acento(w['text']) for w in cw if sem_acento(w['text']) in ST_OK), None)
             nums = ''.join(w['text'] for w in cw if abs(w['top'] - y) < 2 and re.fullmatch(r'[\d.,]+', w['text']))
             qtd = int(nums.replace('.', '').replace(',', '')) if re.search(r'\d', nums) else 0
@@ -124,7 +125,16 @@ def janelas(prog):
                     d['ev'].setdefault(tr['t'], st)
     for mid, d in M.items():
         d['prod'].sort()
-        d['horas'] = round(sum(b - a for a, b, *_ in d['prod']) / 60, 2)
+        # horas = união dos intervalos, limitada ao dia (06:30 -> 06:30): nunca passa de 24 h,
+        # mesmo com troca de produto no mesmo turno ou um horário lido fora de ordem
+        ocupado, fim_ant = 0, 0
+        for a, b, *_ in d['prod']:
+            a, b = max(0, min(a, 1440)), max(0, min(b, 1440))
+            if b <= fim_ant:
+                continue
+            ocupado += b - max(a, fim_ant)
+            fim_ant = b
+        d['horas'] = round(ocupado / 60, 2)
         jan = []
         for t, (a, b) in TURNOS.items():
             occ = sorted([(max(a, x), min(b, y)) for x, y, *_ in d['prod'] if x < b and y > a])
