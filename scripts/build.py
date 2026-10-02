@@ -25,7 +25,12 @@ PCM_MAQ = {'CONDOR': 'VEG-RC07', 'MESPACK A': 'ATO-MP01', 'MESPACK B': 'ATO-MP02
            'MESPACK E': 'ATO-MP05', 'MESPACK F': 'ATO-MP07', 'MESPACK R1': 'VEG-MP06', 'MESPACK R2': 'VEG-MP08',
            'ENCHEDEIRA TOP DOWN': 'ATO-EC08', 'ENCHEDEIRA COPO/LATA': 'ATO-EC06', '60L1': 'VEG-EC02', '60L2': 'VEG-EC03'}
 INCLUIR_TAG = {'RC07'}                                               # máquinas fora das famílias acima (RC07 = Recravadeira Condor)
-IGNORAR_TAG = {'ETH'}                                                # TAGs que não são envasadoras
+IGNORAR_TAG = {'ETH'}
+H_PADRAO = 22                                                        # horas disponíveis/dia quando não há programação do PCP
+MAQ_MTBF = ['MESPACK A', 'MESPACK B', 'MESPACK C', 'MESPACK D', 'MESPACK E', 'MESPACK F', 'MESPACK R1', 'MESPACK R2',
+            'ENCHEDEIRA TOP DOWN', 'ENCHEDEIRA COPO/LATA', '60L1', '60L2', 'CONDOR', 'ENCAIXOTAMENTO VEGETAIS']
+MESES_PT = ['janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho', 'julho', 'agosto', 'setembro', 'outubro',
+            'novembro', 'dezembro']                                                # TAGs que não são envasadoras
 FREQ_DIAS = {'DIÁRIA': 1, 'DIARIA': 1, 'SEMANAL': 7, 'QUINZENAL': 15, 'MENSAL': 30, 'BIMESTRAL': 60,
              'TRIMESTRAL': 90, 'SEMESTRAL': 180, 'ANUAL': 365}
 
@@ -296,6 +301,43 @@ def programacoes():
     return {d: progs[d] for d in ultimas}
 
 
+# ---------------------------------------------------------------- horas disponíveis (para o MTBF da planilha)
+def horas_disponiveis(b):
+    """Gera data/horas_disponiveis.csv: uma linha por dia com registro na BASE_PCM x máquina.
+    Dia com PDF do PCP: horas programadas da máquina (0 se não programada).
+    Máquina não programada mas com falha lançada: usa H_PADRAO e entra na lista para conferir.
+    Dia sem PDF (antes de 30/09 ou PDF que não chegou): H_PADRAO.
+    Máquina que não aparece no PDF (ex.: Encaixotamento Vegetais): H_PADRAO."""
+    progs = {}
+    for f in glob.glob(os.path.join(ROOT, 'data', 'programacao', '*.json')):
+        p = json.load(open(f, encoding='utf-8'))
+        progs[p['data']] = {k: v['horas'] for k, v in p.get('maquinas', {}).items()}
+    b = b.assign(E=b.Equipamento.astype(str).str.strip().str.upper(), D=b['Data Inicio'].dt.date)
+    com_falha = set(zip(b.D, b.E))
+    linhas, conferir = [], []
+    for d in sorted(b.D.unique()):
+        prog = progs.get(d.isoformat())
+        for e in MAQ_MTBF:
+            mid = PCM_MAQ.get(e)
+            if prog is None:
+                h, origem = H_PADRAO, 'padrão (sem PDF)'
+            elif not mid:
+                h, origem = H_PADRAO, 'padrão (máquina fora do PDF)'
+            elif prog.get(mid, 0) > 0:
+                h, origem = min(prog[mid], 24), 'programação PCP'
+            elif (d, e) in com_falha:
+                h, origem = H_PADRAO, 'CONFERIR: falha sem programação'
+                fl = b[(b.D == d) & (b.E == e)]
+                conferir.append(dict(data=d.isoformat(), maq=e, f=int(fl.f.sum()), h=round(float(fl.h.sum()), 2)))
+            else:
+                h, origem = 0, 'não programada'
+            linhas.append(f"{d.isoformat()};{MESES_PT[d.month - 1]};{e};{round(h * 60)};{origem}")
+    with open(os.path.join(ROOT, 'data', 'horas_disponiveis.csv'), 'w', encoding='utf-8-sig', newline='') as fh:
+        fh.write('Data;Mês;Equipamento;Minutos;Origem\n' + '\n'.join(linhas) + '\n')
+    print(f'horas_disponiveis.csv: {len(linhas)} linhas, {len(progs)} dia(s) com PDF, {len(conferir)} para conferir')
+    return conferir
+
+
 # ---------------------------------------------------------------- main
 def main():
     ap = argparse.ArgumentParser()
@@ -318,6 +360,11 @@ def main():
                                               pcmPeriodo=['', ''], pcmReg=0)
     progs = programacoes()
     issues = qualidade(xlsx, base, b)
+    if b is not None:
+        for c in horas_disponiveis(b):
+            issues.append(dict(tipo='Falha lançada em máquina fora da programação', tag=c['maq'],
+                               det=f"{c['data'][8:]}/{c['data'][5:7]}: {c['f']} falha(s), {c['h']} h paradas, mas a máquina não estava "
+                                   f"no PDF do PCP. O MTBF usou {H_PADRAO} h nesse dia — confira se ela rodou ou se o lançamento está errado."))
     if fora:
         issues.append(dict(tipo='Planos que não entram neste painel', tag='—',
                            det=f'{len(fora)} plano(s) da aba Preventiva são de outros equipamentos ou estão sem frequência: '
