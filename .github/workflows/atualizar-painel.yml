@@ -24,6 +24,8 @@ jobs:
     steps:
       - name: Checkout do repositório
         uses: actions/checkout@v4
+        with:
+          ref: main          # sempre a versão mais nova (inclui o painel gerado pela execução anterior)
 
       - name: Configurar Python
         uses: actions/setup-python@v5
@@ -61,5 +63,5 @@ jobs:
           git add index.html data/
           git diff --cached --quiet && exit 0
           git commit -m "Atualiza painel ($(TZ=America/Sao_Paulo date +'%d/%m %H:%M'))"
-          git pull --rebase
+          git pull --rebase -X theirs   # se outra execução publicou antes, fica o painel recém-gerado
           git push
