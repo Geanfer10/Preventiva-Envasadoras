@@ -21,9 +21,10 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 FAMILIAS_ENVASE = ['MSP', 'MPS', 'ENC', 'ENA']                       # famílias que entram no painel
 AREAS = {'LINHA ATOMATADOS': 'Atomatados', 'LINHA POLPA': 'Polpa', 'LINHA VEGETAIS': 'Vegetais'}
 # nome do equipamento na BASE_PCM -> id da máquina no painel
-PCM_MAQ = {'MESPACK A': 'ATO-MP01', 'MESPACK B': 'ATO-MP02', 'MESPACK C': 'ATO-MP03', 'MESPACK D': 'ATO-MP04',
+PCM_MAQ = {'CONDOR': 'VEG-RC07', 'MESPACK A': 'ATO-MP01', 'MESPACK B': 'ATO-MP02', 'MESPACK C': 'ATO-MP03', 'MESPACK D': 'ATO-MP04',
            'MESPACK E': 'ATO-MP05', 'MESPACK F': 'ATO-MP07', 'MESPACK R1': 'VEG-MP06', 'MESPACK R2': 'VEG-MP08',
            'ENCHEDEIRA TOP DOWN': 'ATO-EC08', 'ENCHEDEIRA COPO/LATA': 'ATO-EC06', '60L1': 'VEG-EC02', '60L2': 'VEG-EC03'}
+INCLUIR_TAG = {'RC07'}                                               # máquinas fora das famílias acima (RC07 = Recravadeira Condor)
 IGNORAR_TAG = {'ETH'}                                                # TAGs que não são envasadoras
 FREQ_DIAS = {'DIÁRIA': 1, 'DIARIA': 1, 'SEMANAL': 7, 'QUINZENAL': 15, 'MENSAL': 30, 'BIMESTRAL': 60,
              'TRIMESTRAL': 90, 'SEMESTRAL': 180, 'ANUAL': 365}
@@ -78,7 +79,7 @@ def ler_base(xlsx):
 
 
 def maquinas(df):
-    env = df[df.FAMILIA.isin(FAMILIAS_ENVASE) & (df.STATUS == 'ATIVO') & df['ÁREA'].isin(AREAS)].copy()
+    env = df[(df.FAMILIA.isin(FAMILIAS_ENVASE) | df.TAG.isin(INCLUIR_TAG)) & (df.STATUS == 'ATIVO') & df['ÁREA'].isin(AREAS)].copy()
     env['A'] = env['ÁREA'].map(AREAS)
     ms, comps = [], []
     for (a, t), g in env.groupby(['A', 'TAG']):
@@ -231,7 +232,7 @@ def falhas(b):
 
 # ---------------------------------------------------------------- qualidade da base
 def qualidade(xlsx, df, b):
-    env = df[df.FAMILIA.isin(FAMILIAS_ENVASE) & (df.STATUS == 'ATIVO') & df['ÁREA'].isin(AREAS)].copy()
+    env = df[(df.FAMILIA.isin(FAMILIAS_ENVASE) | df.TAG.isin(INCLUIR_TAG)) & (df.STATUS == 'ATIVO') & df['ÁREA'].isin(AREAS)].copy()
     env['A'] = env['ÁREA'].map(AREAS)
     R = []
     for t, g in env.groupby('TAG'):
