@@ -35,8 +35,10 @@ def maquinas_da_linha(linha):
             out.append(MP_LETRA[tk])
     elif re.search(r'\b60\s*L', L):
         out += [{'1': 'VEG-EC02', '2': 'VEG-EC03'}[n] for n in re.findall(r'\b([12])\b', base.replace('60L', ''))]
-    elif 'SERAC' in L or 'TOP DOWN' in L or 'TOPDOWN' in L:
+    elif 'SERAC' in L or 'TOP DOWN' in L or 'TOPDOWN' in L or 'FRASCO' in L:
         out.append('ATO-EC08')
+    elif 'CONDOR' in L or '1,7' in L or '1.7' in L:
+        out.append('VEG-RC07')
     elif 'COPO' in L or 'LATA' in L:
         out.append('ATO-EC06')
     elif '3100' in L or '4KG' in L:
