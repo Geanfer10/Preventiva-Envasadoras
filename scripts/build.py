@@ -28,7 +28,7 @@ INCLUIR_TAG = {'RC07'}                                               # máquinas
 IGNORAR_TAG = {'ETH'}
 H_PADRAO = 22                                                        # horas disponíveis/dia quando não há programação do PCP
 MAQ_MTBF = ['MESPACK A', 'MESPACK B', 'MESPACK C', 'MESPACK D', 'MESPACK E', 'MESPACK F', 'MESPACK R1', 'MESPACK R2',
-            'ENCHEDEIRA TOP DOWN', 'ENCHEDEIRA COPO/LATA', '60L1', '60L2', 'CONDOR', 'ENCAIXOTAMENTO VEGETAIS']
+            'ENCHEDEIRA TOP DOWN', 'ENCHEDEIRA COPO/LATA', '60L1', '60L2', 'CONDOR']
 MESES_PT = ['janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho', 'julho', 'agosto', 'setembro', 'outubro',
             'novembro', 'dezembro']                                                # TAGs que não são envasadoras
 FREQ_DIAS = {'DIÁRIA': 1, 'DIARIA': 1, 'SEMANAL': 7, 'QUINZENAL': 15, 'MENSAL': 30, 'BIMESTRAL': 60,
