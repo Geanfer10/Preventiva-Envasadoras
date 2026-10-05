@@ -130,6 +130,8 @@ td.w{min-width:240px}
 .yes{color:var(--ok);font-weight:600}.no{color:var(--venc);font-weight:600}
 .spark{vertical-align:middle}
 .up{color:var(--venc)}.down{color:var(--ok)}
+.trp{display:inline-block;font-weight:700;font-size:12px;padding:1px 7px;border-radius:10px;margin-left:4px;line-height:1.5}
+.trp.up{color:#fff;background:#C23B3B}.trp.down{color:#fff;background:#2B7A4B}
 .p-prazo{color:var(--ok);background:color-mix(in srgb,var(--ok) 14%,transparent)}
 .p-atraso{color:#B07A10;background:color-mix(in srgb,var(--d7) 20%,transparent)}
 .p-nao{color:var(--venc);background:color-mix(in srgb,var(--venc) 14%,transparent)}
@@ -154,6 +156,7 @@ tr.det:hover td{background:var(--bg)}
 .mot b{color:var(--ink);font-family:var(--f-num);font-weight:600}
 .dchart svg{width:100%;height:auto;display:block}
 @media (max-width:900px){.dwrap{grid-template-columns:minmax(0,1fr)}}
+#mesSel{font:inherit;font-size:13px;padding:5px 8px;border:1px solid var(--line);border-radius:6px;background:var(--surface);color:var(--ink)}
 .perbar{display:flex;flex-wrap:wrap;align-items:center;gap:8px 12px}
 .seg{display:inline-flex;border:1px solid var(--line);border-radius:8px;overflow:hidden;background:var(--surface)}
 .seg button{border:0;background:none;padding:7px 14px;font:600 13.5px var(--f-body);color:var(--muted)}
@@ -346,12 +349,12 @@ body.lock{overflow:hidden}
  </section>
 
  <section class="tab" id="t-corretiva" hidden>
-  <div class="perbar"><span class="hint">Período de análise</span><div class="seg" role="radiogroup" aria-label="Período"><button role="radio" data-per="mes" aria-checked="true">Mês</button><button role="radio" data-per="sem" aria-checked="false">Semana · últimos 7 dias</button></div><span class="hint" id="perTxt"></span></div>
+  <div class="perbar"><span class="hint">Período de análise</span><div class="seg" role="radiogroup" aria-label="Período"><button role="radio" data-per="mes" aria-checked="true">Mês</button><button role="radio" data-per="sem" aria-checked="false">Semana · últimos 7 dias</button></div><select id="mesSel" aria-label="Mês"></select><span class="hint" id="perTxt"></span></div>
   <div class="kpis" id="coK"></div>
   <div class="grid2">
    <div class="cpanel"><h3>Parada corretiva × aderência da preventiva</h3><div class="hint" id="corH">Horas paradas por mês (BASE_PCM) e % de preventivas no prazo</div>
     <div class="legend"><span><i style="background:var(--mec)"></i>Mecânica</span><span><i style="background:var(--ele)"></i>Elétrica</span><span><i style="background:var(--aut)"></i>Automação</span><span><i style="background:#fff;height:2px;vertical-align:3px"></i>Aderência</span></div><div class="cbox"><canvas id="cCor"></canvas></div></div>
-   <div class="cpanel"><h3 id="mtT">MTBF e MTTR por mês</h3><div class="hint">Mesma fórmula do painel MTBF/MTTR · 24 h por dia com registro</div>
+   <div class="cpanel"><h3 id="mtT">MTBF e MTTR por mês</h3><div class="hint">Mesma fórmula da planilha · horas disponíveis = programação do PCP (22 h/dia quando não há PDF)</div>
     <div class="legend"><span><i style="background:var(--ok)"></i>MTBF (h)</span><span><i style="background:var(--venc)"></i>MTTR (min)</span></div><div class="cbox"><canvas id="cMtbf"></canvas></div></div>
   </div>
   <div class="panel"><div class="panel-h"><div><h2>Máquinas</h2><div class="hint">Clique numa máquina para ver as paradas por departamento</div></div><span class="hint" id="coP"></span></div>
@@ -413,16 +416,17 @@ const agDe=p=>AGD.filter(e=>e.p.id===p.id).sort((a,b)=>a.pr-b.pr);
 const agNoDia=(mid,dstr)=>AGD.filter(e=>e.p.m===mid&&e.pr.toDateString()===dstr);
 const agChip=p=>{const a=agDe(p)[0];return a?` <span class="agchip" title="Agendada na aba Execuções">Agendada ${fd(a.pr)}</span>`:''};
 const MESC=k=>MES[+k.slice(5)-1].slice(0,3);
-const LASTM=DATA.meses[DATA.meses.length-1];
+const LASTM=[...DATA.meses].reverse().find(k=>DATA.diasMes[k]>=10)||DATA.meses[DATA.meses.length-1];   // último mês com pelo menos 10 dias de registro
+let MSEL=DATA.meses[DATA.meses.length-1];   // mês escolhido na aba Preventiva × Corretiva
 const exs=P=>{const s=new Set(P.map(p=>p.id));return EX.filter(e=>s.has(e.p.id))};
 const ader=(E,mes)=>{const L=E.filter(e=>(!mes||e.mes===mes)&&e.s!=='aberta');return L.length?Math.round(100*L.filter(e=>e.s==='prazo').length/L.length):null};
 const f1=v=>v==null||!isFinite(v)?'–':v.toLocaleString('pt-BR',{maximumFractionDigits:1,minimumFractionDigits:1});
 let PER='mes';
-const wkLab=k=>{const s=DATA.semanas.find(x=>x.k===k);return s?s.ini.slice(8,10)+'/'+s.ini.slice(5,7):k};
-function PS(){if(PER==='mes')return{keys:DATA.meses,dias:DATA.diasMes,fal:DATA.fal,lab:MESC,nm:k=>MESC(k).toLowerCase(),sh:k=>MESC(k).toLowerCase(),nref:3};
+const wkLab=k=>{const s=DATA.semanas.find(x=>x.k===k);return s?s.ini.slice(8,10)+'/'+s.ini.slice(5,7)+'–'+s.fim.slice(8,10)+'/'+s.fim.slice(5,7):k};
+function PS(){if(PER==='mes')return{keys:DATA.meses.slice(0,DATA.meses.indexOf(MSEL)+1),dias:DATA.diasMes,fal:DATA.fal,lab:MESC,nm:k=>MESC(k).toLowerCase(),sh:k=>MESC(k).toLowerCase(),nref:3};
  const ks=DATA.semanas.map(s=>s.k);return{keys:ks,dias:DATA.diasSem,fal:DATA.falw,lab:wkLab,nm:k=>k===ks[ks.length-1]?'últimos 7 dias':k===ks[ks.length-2]?'7 dias anteriores':'sem. de '+wkLab(k),sh:k=>k===ks[ks.length-1]?'7d':k===ks[ks.length-2]?'7d ant.':wkLab(k),nref:1}}
 function aderK(E,k){if(PER==='mes')return ader(E,k);const s=DATA.semanas.find(x=>x.k===k),a=pd(s.ini),b=pd(s.fim);const L=E.filter(e=>e.pr>=a&&e.pr<=b&&e.s!=='aberta');return L.length?Math.round(100*L.filter(e=>e.s==='prazo').length/L.length):null}
-function falAgg(ids){const S=PS();return S.keys.map(k=>{let f=0,h=0,n=0;const dep={};ids.forEach(id=>{const x=S.fal[id]&&S.fal[id][k];if(!x)return;n++;f+=x.f;h+=x.h;for(const d in x.dep)dep[d]=(dep[d]||0)+x.dep[d]});const ph=n*S.dias[k]*24;return{k,f,h,dep,mtbf:f?(ph-h)/f:null,mttr:f?h/f*60:null}})}
+function falAgg(ids){const S=PS();return S.keys.map(k=>{let f=0,h=0,n=0;const dep={};let ph=0;ids.forEach(id=>{const x=S.fal[id]&&S.fal[id][k];if(!x)return;n++;f+=x.f;h+=x.h;ph+=x.hd!=null?x.hd:S.dias[k]*24;for(const d in x.dep)dep[d]=(dep[d]||0)+x.dep[d]});return{k,f,h,dep,mtbf:f?(ph-h)/f:null,mttr:f?h/f*60:null}})}
 document.getElementById('upd').textContent='Atualizado '+(DATA.gerado||'');
 $('#hoje').textContent=T0.toLocaleDateString('pt-BR',{weekday:'long',day:'2-digit',month:'long',year:'numeric'});
 
@@ -539,7 +543,7 @@ function machines(){
   const cov=new Set(L.map(p=>p.rg)).size;const pc=Math.round(100*cov/m.ncomp);
   const nx=L.filter(p=>p.dias>=0).sort((a,b)=>a.dias-b.dias)[0];
   const cls=!L.length?'s-none':v?'s-venc':s7?'s-d7':'s-ok';
-  const fa=DATA.fal[m.id]&&DATA.fal[m.id][LASTM];const mtbf=fa&&fa.f?(DATA.diasMes[LASTM]*24-fa.h)/fa.f:null;
+  const fa=DATA.fal[m.id]&&DATA.fal[m.id][LASTM];const mtbf=fa&&fa.f?((fa.hd!=null?fa.hd:DATA.diasMes[LASTM]*24)-fa.h)/fa.f:null;
   return `<button class="mcard ${cls}${F_MAQ.has(m.id)?' sel':''}" data-id="${m.id}"><div class="row"><span class="tg">${m.tag}</span><span class="crit ${m.crit}">${m.crit}</span></div>
   <div><div class="nm">${m.nome}</div><div class="meta">${m.area} · ${m.linha}</div></div>
   <div class="mstats"><div><b class="num" style="color:${v?'var(--venc)':'inherit'}">${v}</b><span>Vencidas</span></div><div><b class="num">${s7}</b><span>7 dias</span></div><div><b class="num">${fa?fa.f:'–'}</b><span>Falhas ${MESC(LASTM)}</span></div></div>
@@ -647,13 +651,14 @@ function corretiva(P){
   ['br','Aderência preventiva',(aderK(exs(P),k1)??'–')+'%','no mesmo período'],['venc','Componentes sem plano',sem.length,`somam ${f1(sem.reduce((a,c)=>a+c.h,0))} h paradas em 90 dias`]]
   .map(([k,l,v,s])=>`<div class="kpi ${k}"><span class="l">${l}</span><span class="v">${v}</span><span class="s">${s}</span></div>`).join('');
  $('#thFal').textContent=PER==='mes'?`Falhas em ${S.nm(k1)} × ${S.nm(k0)} (por dia)`:'Falhas 7 dias × 7 anteriores (por dia)';$('#thTen').textContent=PER==='mes'?`Falhas ${S.nm(K[0])}–${S.nm(k1)}`:'Falhas · 8 semanas';
- const sw=DATA.semanas[DATA.semanas.length-1],sp=DATA.semanas[DATA.semanas.length-2];$('#perTxt').textContent=PER==='mes'?`Mês atual (${S.nm(k1)}) comparado com o anterior`:`${fd(pd(sw.ini))}–${fd(pd(sw.fim))} comparado com ${fd(pd(sp.ini))}–${fd(pd(sp.fim))}`;
+ const sw=DATA.semanas[DATA.semanas.length-1],sp=DATA.semanas[DATA.semanas.length-2];$('#perTxt').textContent=PER==='mes'?`${DATA.diasMes[k1]} dia(s) com registro em ${MES[+k1.slice(5)-1].toLowerCase()}${k1===DATA.meses[DATA.meses.length-1]?' (mês em andamento, último lançamento '+fd(pd(DATA.pcmPeriodo[1]))+')':''} · comparado com a média dos meses anteriores`:`Últimos 7 dias com falhas lançadas: ${fd(pd(sw.ini))} a ${fd(pd(sw.fim))} (último lançamento na BASE_PCM) · comparado com ${fd(pd(sp.ini))} a ${fd(pd(sp.fim))}`;
+ $('#mesSel').style.display=PER==='mes'?'':'none';
  document.querySelectorAll('.seg button').forEach(b=>b.setAttribute('aria-checked',b.dataset.per===PER));
  $('#coP').textContent=`BASE_PCM · ${DATA.pcmReg.toLocaleString('pt-BR')} registros de ${fd(pd(DATA.pcmPeriodo[0]))} a ${fd(pd(DATA.pcmPeriodo[1]))}`;
  const E=exs(DATA.plans),t90=T0.getTime()-90*DAY;
  $('#coT').innerHTML=ms.map(m=>{const a=falAgg([m.id]),c=a[a.length-1],Lp=DATA.plans.filter(p=>p.m===m.id),ad=ader(E.filter(e=>e.p.m===m.id&&e.pr>=t90)),cov=Math.round(100*new Set(Lp.map(p=>p.rg)).size/m.ncomp);
    const pv=a[a.length-2],pd1=pv&&pv.f?pv.f/S.dias[pv.k]:0,cd1=c.f/S.dias[c.k];const tr=pd1?Math.round(100*(cd1-pd1)/pd1):0;const lim=PER==='sem'?40:100;const low=c.f<lim||!pv||pv.f<lim;return{low,m,c,a,ad,cov,tr,v:Lp.filter(p=>p.st==='venc').length}}).sort((x,y)=>y.c.h-x.c.h)
-  .map(r=>`<tr class="mrow${OPEN.has(r.m.id)?' open':''}" data-id="${r.m.id}" tabindex="0" title="Clique para ver por departamento"><td><b class="num">${r.m.tag}</b> ${r.m.nome}<div class="hint">${r.m.area}</div></td><td class="num">${r.c.f} ${r.tr?`<span class="${r.low?'hint':r.tr>0?'up':'down'}" title="Variação de falhas por dia em relação a ${S.nm(k0)}">${r.tr>0?'▲':'▼'}${Math.abs(r.tr)}%</span>`:'<span class="hint">=</span>'}${r.low?`<span class="lowv" title="Menos de ${PER==='sem'?'40 falhas na semana':'100 falhas no mês'} em um dos períodos: a % oscila muito, olhe também o número absoluto">volume baixo</span>`:''}<div class="hint">${f1(r.c.f/S.dias[r.c.k])}/dia · ${S.sh(k0)}: ${r.a[r.a.length-2].f} (${f1(r.a[r.a.length-2].f/S.dias[r.a[r.a.length-2].k])}/dia)</div></td><td>${spark(r.a.map(x=>x.f))}</td><td class="num">${f1(r.c.h)}</td><td class="num">${f1(r.c.mtbf)} h</td><td class="num">${f1(r.c.mttr)} min</td><td class="num">${r.ad??'–'}%</td><td class="num" style="color:${r.v?'var(--venc)':'inherit'}">${r.v}</td><td><div class="bar" style="width:70px;display:inline-block;vertical-align:middle"><i style="width:${r.cov}%"></i></div> <span class="num">${r.cov}%</span></td></tr>${OPEN.has(r.m.id)?`<tr class="det"><td colspan="9">${detHTML(r.m)}</td></tr>`:''}`).join('');
+  .map(r=>`<tr class="mrow${OPEN.has(r.m.id)?' open':''}" data-id="${r.m.id}" tabindex="0" title="Clique para ver por departamento"><td><b class="num">${r.m.tag}</b> ${r.m.nome}<div class="hint">${r.m.area}</div></td><td class="num">${r.c.f} ${r.tr?`<span class="trp ${r.tr>0?'up':'down'}" title="Variação de falhas por dia em relação a ${S.nm(k0)}${r.low?' · volume baixo: confira também o número absoluto':''}">${r.tr>0?'▲':'▼'}${Math.abs(r.tr)}%</span>`:'<span class="hint">=</span>'}${r.low?`<span class="lowv" title="Menos de ${PER==='sem'?'40 falhas na semana':'100 falhas no mês'} em um dos períodos: a % oscila muito, olhe também o número absoluto">volume baixo</span>`:''}<div class="hint">${f1(r.c.f/S.dias[r.c.k])}/dia · ${S.sh(k0)}: ${r.a[r.a.length-2].f} (${f1(r.a[r.a.length-2].f/S.dias[r.a[r.a.length-2].k])}/dia)</div></td><td>${spark(r.a.map(x=>x.f))}</td><td class="num">${f1(r.c.h)}</td><td class="num">${f1(r.c.mtbf)} h</td><td class="num">${f1(r.c.mttr)} min</td><td class="num">${r.ad??'–'}%</td><td class="num" style="color:${r.v?'var(--venc)':'inherit'}">${r.v}</td><td><div class="bar" style="width:70px;display:inline-block;vertical-align:middle"><i style="width:${r.cov}%"></i></div> <span class="num">${r.cov}%</span></td></tr>${OPEN.has(r.m.id)?`<tr class="det"><td colspan="9">${detHTML(r.m)}</td></tr>`:''}`).join('');
  $('#coT').querySelectorAll('tr.mrow').forEach(tr=>{const go=()=>{const id=tr.dataset.id;OPEN.has(id)?OPEN.delete(id):OPEN.add(id);corretiva(plans())};tr.onclick=go;tr.onkeydown=e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();go()}}});
  const C=DATA.comp.filter(c=>ms.some(m=>m.id===c.m)).slice(0,30);
  $('#coC').innerHTML=C.map(c=>`<tr><td class="num">${c.rg}</td><td class="w">${c.d}</td><td class="num">${M[c.m].tag}</td><td class="num">${c.f}</td><td class="num">${f1(c.h)}</td><td class="w">${c.mot.join(' · ')}</td><td class="${HASP.has(c.rg)?'yes':'no'}">${HASP.has(c.rg)?'Tem plano':'Criar plano'}</td></tr>`).join('')||'<tr><td colspan="7" class="empty">Sem registros de falha para os filtros escolhidos.</td></tr>';
@@ -761,6 +766,9 @@ function drawCharts(){
  }
 }
 document.querySelectorAll('.seg button').forEach(b=>b.onclick=()=>{PER=b.dataset.per;corretiva(plans());drawCharts()});
+$('#mesSel').innerHTML=[...DATA.meses].reverse().map(k=>`<option value="${k}">${MES[+k.slice(5)-1]}/${k.slice(0,4)} · ${DATA.diasMes[k]} dia(s)</option>`).join('');
+$('#mesSel').value=MSEL;
+$('#mesSel').onchange=e=>{MSEL=e.target.value;corretiva(plans());drawCharts()};
 ['#capM','#capE','#capA'].forEach(s=>$(s).addEventListener('input',drawCharts));
 
 function render(){const P=plans();kpis(P);alist(P);progTab();cal(P);machines();table(P);pkFill();pacote();execTab(P);corretiva(P);drawCharts()}
