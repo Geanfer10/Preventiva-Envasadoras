@@ -207,11 +207,13 @@ def agrega(s):
                      for k, g in s.groupby('Departamento')})
 
 
-def falhas(b):
+def falhas(b, HD=None):
+    HD = HD or {}
     b = b.copy()
+    b['Data Inicio'] = b['Data Inicio'].dt.normalize()     # dia sem hora (evita contar o mesmo dia duas vezes)
     b['mes'] = b['Data Inicio'].dt.strftime('%Y-%m')
     dias = b.groupby('mes')['Data Inicio'].nunique()
-    meses = [k for k, v in dias.items() if v >= 10][-6:]
+    meses = list(dias.index)[-7:]                   # inclui o mês corrente, mesmo incompleto
     fal = {mid: {m: agrega(g[g.mes == m]) for m in meses} for mid, g in b[b.mid.notna()].groupby('mid')}
     last = b['Data Inicio'].max().normalize()
     sem = []
@@ -222,6 +224,17 @@ def falhas(b):
     for w in sem:
         b.loc[(b['Data Inicio'] >= w['ini']) & (b['Data Inicio'] <= w['fim']), 'wk'] = w['k']
     falw = {mid: {w['k']: agrega(g[g.wk == w['k']]) for w in sem} for mid, g in b[b.mid.notna() & b.wk.notna()].groupby('mid')}
+    # horas disponíveis (programação do PCP / 22 h) somadas por máquina e período
+    def soma_hd(mid, ok):
+        v = [h for (d, x), h in HD.items() if x == mid and ok(d)]
+        return round(sum(v), 2) if v else None
+    for mid, per in fal.items():
+        for m, x in per.items():
+            x['hd'] = soma_hd(mid, lambda d, m=m: d[:7] == m)
+    for mid, per in falw.items():
+        for w in sem:
+            if w['k'] in per:
+                per[w['k']]['hd'] = soma_hd(mid, lambda d, w=w: w['ini'] <= d <= w['fim'])
     c90 = b[(b['Data Inicio'] > last - pd.Timedelta(days=90)) & b.mid.notna()]
     comp = []
     for (mid, rg), g in c90.groupby(['mid', 'rg']):
@@ -314,7 +327,7 @@ def horas_disponiveis(b):
         progs[p['data']] = {k: v['horas'] for k, v in p.get('maquinas', {}).items()}
     b = b.assign(E=b.Equipamento.astype(str).str.strip().str.upper(), D=b['Data Inicio'].dt.date)
     com_falha = set(zip(b.D, b.E))
-    linhas, conferir = [], []
+    linhas, conferir, mapa = [], [], {}
     for d in sorted(b.D.unique()):
         prog = progs.get(d.isoformat())
         for e in MAQ_MTBF:
@@ -332,10 +345,12 @@ def horas_disponiveis(b):
             else:
                 h, origem = 0, 'não programada'
             linhas.append(f"{d.isoformat()};{MESES_PT[d.month - 1]};{e};{round(h * 60)};{origem}")
+            if mid:
+                mapa[(d.isoformat(), mid)] = round(h * 60) / 60
     with open(os.path.join(ROOT, 'data', 'horas_disponiveis.csv'), 'w', encoding='utf-8-sig', newline='') as fh:
         fh.write('Data;Mês;Equipamento;Minutos;Origem\n' + '\n'.join(linhas) + '\n')
     print(f'horas_disponiveis.csv: {len(linhas)} linhas, {len(progs)} dia(s) com PDF, {len(conferir)} para conferir')
-    return conferir
+    return conferir, mapa
 
 
 # ---------------------------------------------------------------- main
@@ -356,12 +371,13 @@ def main():
     planos, fora = ler_planos(xlsx, base, ms)
     execs = ler_execucoes(xlsx, planos)
     b = ler_pcm(a.pcm, base) if a.pcm and os.path.exists(a.pcm) else None
-    F = falhas(b) if b is not None else dict(fal={}, meses=[], diasMes={}, falw={}, semanas=[], diasSem={}, comp=[],
+    conferir, HD = horas_disponiveis(b) if b is not None else ([], {})
+    F = falhas(b, HD) if b is not None else dict(fal={}, meses=[], diasMes={}, falw={}, semanas=[], diasSem={}, comp=[],
                                               pcmPeriodo=['', ''], pcmReg=0)
     progs = programacoes()
     issues = qualidade(xlsx, base, b)
     if b is not None:
-        for c in horas_disponiveis(b):
+        for c in conferir:
             issues.append(dict(tipo='Falha lançada em máquina fora da programação', tag=c['maq'],
                                det=f"{c['data'][8:]}/{c['data'][5:7]}: {c['f']} falha(s), {c['h']} h paradas, mas a máquina não estava "
                                    f"no PDF do PCP. O MTBF usou {H_PADRAO} h nesse dia — confira se ela rodou ou se o lançamento está errado."))
