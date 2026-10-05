@@ -6,6 +6,7 @@ on:
       - "uploads/**"
       - "programacao/**"
       - "scripts/**"
+      - "pcm/**"
   schedule:
     # de hora em hora, das 06h às 22h (horário de Brasília), para pegar a BASE_PCM nova do MTBF-MTTR
     - cron: "15 9-23,0-1 * * *"
@@ -35,11 +36,17 @@ jobs:
       - name: Instalar dependências
         run: pip install pandas openpyxl pdfplumber
 
-      - name: Baixar a BASE_PCM do repositório MTBF-MTTR
+      - name: Localizar a BASE_PCM
         id: pcm
         run: |
-          git clone --depth 1 https://github.com/geanfer10/MTBF-MTTR.git /tmp/mtbf
-          PCM=$(ls -t /tmp/mtbf/uploads/*.xls* | head -1)
+          # 1º: cópia enviada pelo robô para pcm/ (chega na hora em que o arquivo é salvo)
+          # 2º: se não houver, baixa do repositório MTBF-MTTR
+          PCM=$(ls -t pcm/*.xls* 2>/dev/null | head -1 || true)
+          if [ -z "$PCM" ]; then
+            git clone --depth 1 https://github.com/geanfer10/MTBF-MTTR.git /tmp/mtbf
+            PCM=$(ls -t /tmp/mtbf/uploads/*.xls* | head -1)
+          fi
+          echo "Usando: $PCM"
           echo "arquivo=$PCM" >> "$GITHUB_OUTPUT"
           NOVO=$(sha256sum "$PCM" | cut -d' ' -f1)
           ANTIGO=$(cat data/pcm.sha 2>/dev/null || true)
