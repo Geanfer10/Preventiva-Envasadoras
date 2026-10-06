@@ -2092,3 +2092,16 @@
 2026-10-04;outubro;60L1;0;não programada
 2026-10-04;outubro;60L2;0;não programada
 2026-10-04;outubro;CONDOR;0;não programada
+2026-10-05;outubro;MESPACK A;1320;programação PCP
+2026-10-05;outubro;MESPACK B;1320;programação PCP
+2026-10-05;outubro;MESPACK C;1140;programação PCP
+2026-10-05;outubro;MESPACK D;1140;programação PCP
+2026-10-05;outubro;MESPACK E;1140;programação PCP
+2026-10-05;outubro;MESPACK F;1140;programação PCP
+2026-10-05;outubro;MESPACK R1;1290;programação PCP
+2026-10-05;outubro;MESPACK R2;1290;programação PCP
+2026-10-05;outubro;ENCHEDEIRA TOP DOWN;1350;programação PCP
+2026-10-05;outubro;ENCHEDEIRA COPO/LATA;0;não programada
+2026-10-05;outubro;60L1;1140;programação PCP
+2026-10-05;outubro;60L2;1140;programação PCP
+2026-10-05;outubro;CONDOR;0;não programada
