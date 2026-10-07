@@ -60,13 +60,39 @@ def ler(path):
     out = []
     with pdfplumber.open(path) as pdf:
         for pg in pdf.pages:
-            r = ler_pagina(pg.extract_words(), pg.extract_text() or '')
+            r = ler_pagina(pg.extract_words(), pg.extract_text() or '', pg.chars)
             if r['data']:
                 out.append(r)
     return out
 
 
-def ler_pagina(W, texto):
+def _colunas(W):
+    """Acha as colunas pelo cabeçalho da própria página (o PCP muda a largura das colunas de um dia para o outro)."""
+    prog = sorted({round(w['x0']) for w in W if w['text'] == 'PROG.'})
+    if len(prog) < 3:
+        return COLS, 350, 425
+    # o status (CIP, ENXAGUE...) começa um pouco antes do título "PROG."; a 3ª coluna tem a largura da 2ª
+    m = 18
+    cols = {1: (prog[0] - m, prog[1] - m), 2: (prog[1] - m, prog[2] - m), 3: (prog[2] - m, 2 * prog[2] - prog[1] - m)}
+    lx = [w['x0'] for w in W if w['text'] == 'LINHA']
+    um = [w['x0'] for w in W if w['text'] == 'UM' and w['x0'] < prog[0]]
+    lin_ini = (min(lx) - 25) if lx else 345
+    lin_fim = (min(um) - 2) if um else prog[0] - 15
+    return cols, lin_ini, lin_fim
+
+
+def _linhas(cs):
+    """Agrupa caracteres pela altura (cada linha de texto separada) e devolve o texto de cada linha."""
+    L = []
+    for c in sorted(cs, key=lambda c: c['top']):
+        if L and abs(c['top'] - L[-1][0]) < 1.2:
+            L[-1][1].append(c)
+        else:
+            L.append([c['top'], [c]])
+    return [''.join(c['text'] for c in sorted(g, key=lambda c: c['x0'])) for _, g in L]
+
+
+def ler_pagina(W, texto, C=None):
     # data da programação e emissão
     md = re.search(r'(\d{1,2}) de (\w+) de (\d{4})', texto)
     data = f"{md.group(3)}-{MESES[md.group(2).lower()]:02d}-{int(md.group(1)):02d}" if md else None
@@ -75,6 +101,8 @@ def ler_pagina(W, texto):
     obs = []
     if 'OBSERVAÇÕES IMPORTANTES' in texto:
         obs = [l.strip() for l in texto.split('OBSERVAÇÕES IMPORTANTES', 1)[1].splitlines() if l.strip()]
+    cols, lin_ini, lin_fim = _colunas(W)
+    C = C or []
 
     prods = sorted([w for w in W if re.fullmatch(r'111\d{4}', w['text']) and w['x0'] < 70], key=lambda w: w['top'])
     linhas = []
@@ -82,18 +110,23 @@ def ler_pagina(W, texto):
         y = pw['top']
         y0 = (prods[i - 1]['top'] + 7) if i else y - 25
         nxt = prods[i + 1]['top'] if i + 1 < len(prods) else y + 30
-        y1 = min(y + 7, nxt - 15)
+        y1 = min(y + 7, nxt - 11)        # o status fica um pouco abaixo do código; os horários da próxima linha ficam ~6 acima dela
         band = [w for w in W if y0 < w['top'] <= y1]
-        desc = ' '.join(w['text'] for w in sorted(band, key=lambda w: w['x0']) if abs(w['top'] - y) < 2 and 75 < w['x0'] < 350)
-        linha = ' '.join(w['text'] for w in sorted(band, key=lambda w: w['x0']) if y - 12 < w['top'] < y and 350 < w['x0'] < 425)
+        desc = ' '.join(w['text'] for w in sorted(band, key=lambda w: w['x0']) if abs(w['top'] - y) < 2 and 75 < w['x0'] < lin_ini)
+        linha = ' '.join(w['text'] for w in sorted(band, key=lambda w: w['x0'])
+                         if y - 12 < w['top'] < y + 2 and lin_ini <= w['x0'] < lin_fim)
+        bandc = [c for c in C if y0 < c['top'] <= y1 and c['text'].strip()]
         turnos = []
-        for t, (xa, xb) in COLS.items():
-            cw = sorted([w for w in band if xa <= w['x0'] < xb], key=lambda w: (round(w['top'] / 4), w['x0']))
-            # horários: o da esquerda é o início e o da direita o fim (a altura varia meio ponto entre eles)
-            horas = [w['text'] for w in sorted(cw, key=lambda w: w['x0']) if re.fullmatch(r'\d{2}:\d{2}', w['text'])]
-            st = next((sem_acento(w['text']) for w in cw if sem_acento(w['text']) in ST_OK), None)
-            nums = ''.join(w['text'] for w in cw if abs(w['top'] - y) < 2 and re.fullmatch(r'[\d.,]+', w['text']))
-            qtd = int(nums.replace('.', '').replace(',', '')) if re.search(r'\d', nums) else 0
+        for t, (xa, xb) in cols.items():
+            cc = [c for c in bandc if xa <= c['x0'] < xb]
+            # o PDF sobrepõe três textos na mesma célula; o tamanho da letra separa cada um:
+            # pequeno = horário início/fim, médio = status (PROD/CIP/ENXAGUE...), grande = quantidade
+            horas = [h for ln in _linhas([c for c in cc if c['size'] < 5.0]) if not re.search(r'[A-Za-z]', ln)
+                     for h in re.findall(r'\d{2}:\d{2}', ln)]
+            st = next((sem_acento(ln) for ln in _linhas([c for c in cc if 5.0 <= c['size'] < 9])
+                       if sem_acento(ln) in ST_OK), None)
+            nums = ''.join(ln for ln in _linhas([c for c in cc if c['size'] >= 9]) if re.fullmatch(r'[\d.,\s-]+', ln))
+            qtd = int(re.sub(r'[^\d]', '', nums)) if re.search(r'\d', nums) else 0
             if len(horas) >= 2 or st or qtd:
                 ini = hm(horas[0]) if len(horas) >= 2 else None
                 fim = hm(horas[1]) if len(horas) >= 2 else None
@@ -105,6 +138,27 @@ def ler_pagina(W, texto):
     return dict(data=data, emissao=emissao, obs=obs, linhas=linhas)
 
 
+def maquinas_do_aviso(txt):
+    """Quais máquinas um aviso do PCP cita (MESPACK F, RETORT, 60L, TOP DOWN, CONDOR...)."""
+    T = sem_acento(txt)
+    out = []
+    for m in re.finditer(r'MESPACK\s+((?:R[12]|[A-F])(?:\s*(?:,|&|E)\s*(?:R[12]|[A-F]))*)', T):
+        out += [MP_LETRA[tk] for tk in re.findall(r'\b(R[12]|[A-F])\b', m.group(1))]
+    for chave in ('RETORT', '60L', 'SERAC', 'TOP DOWN', 'TOPDOWN', 'FRASCO', 'CONDOR', '1,7KG', 'COPO', '3100', '4KG'):
+        if chave in T:
+            out += maquinas_da_linha(chave + (' 1 & 2' if chave in ('RETORT', '60L') else ''))
+    return list(dict.fromkeys(out))
+
+
+def tipo_aviso(txt):
+    T = sem_acento(txt)
+    if re.search(r'MANUTENC|PREVENTIV|CORRETIV|PARADA|QUEBRA|TROCA', T):
+        return 'manutencao'
+    if re.search(r'CIP|SWAB|TESTE|LIMPEZA|HIGIENI|SANIT|QUALIDADE|ACOMPANHAD', T):
+        return 'qualidade'
+    return 'info'
+
+
 def janelas(prog):
     """Para cada máquina: intervalos de produção, horas programadas e janelas sem produção."""
     obs_txt = sem_acento(' '.join(prog['obs']))
@@ -112,6 +166,16 @@ def janelas(prog):
     for m in re.finditer(r'CIP APENAS NA[S]?\s+((?:MESPACK\s+)?(?:R[12]|[A-F])(?:\s*(?:E|,|&)\s*(?:R[12]|[A-F]))*)', obs_txt):
         for tk in re.findall(r'\b(R[12]|[A-F])\b', m.group(1).replace('MESPACK', '')):
             so_cip.add(MP_LETRA[tk])
+    nao_cip = set()     # "NÃO CIPAR MESPACK E": essa máquina fica parada, mas sem fazer CIP
+    for m in re.finditer(r'NAO CIPAR\s+((?:MESPACK\s+)?(?:R[12]|[A-F])(?:\s*(?:E|,|&)\s*(?:R[12]|[A-F]))*)', obs_txt):
+        for tk in re.findall(r'\b(R[12]|[A-F])\b', m.group(1).replace('MESPACK', '')):
+            nao_cip.add(MP_LETRA[tk])
+    prog['avisos'] = []
+    for o in prog['obs']:
+        maq = maquinas_do_aviso(o)
+        for cod in re.findall(r'\b111\d{4}\b', o):          # aviso citando o código do produto: máquina da linha dele
+            maq += [m for ln in prog['linhas'] if ln['cod'] == cod for m in ln['maq']]
+        prog['avisos'].append(dict(txt=o, maq=list(dict.fromkeys(maq)), tipo=tipo_aviso(o)))
     M = {}
     for ln in prog['linhas']:
         for mid in ln['maq']:
@@ -123,6 +187,8 @@ def janelas(prog):
                 if tr['st'] != 'PROD':
                     st = tr['st']
                     if st == 'CIP' and len(ln['maq']) > 1 and any(x in so_cip for x in ln['maq']) and mid not in so_cip:
+                        st = 'PARADA SEM CIP'
+                    if st == 'CIP' and mid in nao_cip:
                         st = 'PARADA SEM CIP'
                     d['ev'].setdefault(tr['t'], st)
     for mid, d in M.items():
