@@ -164,6 +164,14 @@ tr.det:hover td{background:var(--bg)}
 .lowv{font-size:10.5px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--muted);border:1px dashed var(--line);border-radius:3px;padding:0 4px;margin-left:4px}
 .pgobs{background:color-mix(in srgb,var(--d7) 16%,var(--surface));border-radius:8px;padding:10px 12px;font-size:14px}
 .pgobs:empty{display:none}
+.avisos{display:flex;flex-direction:column;gap:6px}.avisos:empty{display:none}
+.aviso{display:flex;gap:10px;align-items:flex-start;padding:9px 12px;border-radius:8px;font-size:14px;border-left:4px solid var(--d30);background:color-mix(in srgb,var(--d30) 12%,var(--surface))}
+.aviso.manutencao{border-left-color:var(--venc);background:color-mix(in srgb,var(--venc) 12%,var(--surface))}
+.aviso.qualidade{border-left-color:var(--d7);background:color-mix(in srgb,var(--d7) 16%,var(--surface))}
+.aviso .ic{font-weight:700;font-size:11px;letter-spacing:.04em;text-transform:uppercase;white-space:nowrap;padding-top:2px;min-width:86px}
+.aviso .mq{display:inline-block;font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:700;padding:0 6px;margin-left:6px;border-radius:4px;background:var(--surface);border:1px solid var(--line)}
+.avchip{font-style:normal;display:inline-block;font-size:10px;font-weight:700;color:#fff;background:var(--venc);border-radius:4px;padding:0 5px;margin-left:6px;vertical-align:middle;cursor:help}
+.avchip.qualidade{background:#B7791F}.avchip.info{background:#4A7FA8}
 .gantt{display:flex;flex-direction:column;gap:6px;overflow-x:auto}
 .grow{display:grid;grid-template-columns:minmax(150px,210px) minmax(420px,1fr) 92px;gap:10px;align-items:center;min-width:680px}
 .glab b{font:700 14px var(--f-num)}.glab span{display:block;font-size:12px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -267,6 +275,7 @@ body.lock{overflow:hidden}
 
 <main class="wrap">
  <section class="tab" id="t-visao">
+  <div class="panel" id="vgAv" hidden><div class="panel-h"><h2>Avisos do PCP</h2><span class="hint" id="vgAvT"></span></div><div class="avisos" id="vgAvL"></div></div>
   <div class="kpis" id="kpis"></div>
   <div class="grid-ov">
    <div class="cpanel"><h3>Status dos planos por máquina</h3><div class="hint">Quantidade de planos em cada situação</div>
@@ -287,7 +296,7 @@ body.lock{overflow:hidden}
  <section class="tab" id="t-programacao" hidden>
   <div class="panel">
    <div class="panel-h"><div><h2 id="pgTitle">Programação</h2><div class="hint" id="pgSub"></div></div><div style="display:flex;gap:8px;align-items:center"><select id="pgDate" aria-label="Data da programação"></select><span class="pill p-d30" id="pgWhen"></span></div></div>
-   <div class="pgobs" id="pgObs"></div>
+   <div class="avisos" id="pgObs"></div>
   </div>
   <div class="kpis" id="pgK"></div>
   <div class="panel">
@@ -468,6 +477,7 @@ function kpis(P){
  const c=k=>P.filter(p=>p.st===k).length;
  const next30=P.filter(p=>p.dias>=0&&p.dias<=30).reduce((a,p)=>a+p.h,0);
  const E=exs(P),ad=ader(E,LASTM),adp=ader(E,DATA.meses[DATA.meses.length-2]);
+ avisosVisao();
  $('#kpis').innerHTML=[
   ['br','Planos ativos',P.length,`${ms.length} máquinas`],
   ['venc','Vencidas',c('venc'),`${P.length?Math.round(100*c('venc')/P.length):0}% dos planos`],
@@ -673,6 +683,12 @@ function caber(mid,min){ // preventivas da máquina, vencendo em 15 dias, por pr
  const L=DATA.plans.filter(p=>p.m===mid&&p.dias<=15&&(!F.disc||(p.discs||[p.disc]).includes(F.disc))).sort((a,b)=>(b.cond==='Parada')-(a.cond==='Parada')||b.prio-a.prio);
  const out=[];let used=0;const cap=min==null?30:min*.9;
  for(const p of L){if(used+p.h*60<=cap){out.push(p);used+=p.h*60}}return{out,used,tot:L.length}}
+const AVT={manutencao:'Manutenção',qualidade:'Qualidade / CIP',info:'Aviso'};
+function avisosDe(G){return G?(G.avisos||G.obs.map(o=>({txt:o,maq:[],tipo:'info'}))):[]}
+function avisosHTML(G){return avisosDe(G).map(a=>`<div class="aviso ${a.tipo}"><span class="ic">${AVT[a.tipo]||'Aviso'}</span><span>${a.txt}${(a.maq||[]).map(id=>`<span class="mq">${M[id]?M[id].tag:id}</span>`).join('')}</span></div>`).join('')}
+function avisosVisao(){const ds=Object.keys(DATA.progs||{}).sort();const hoje=new Date(T0).toISOString().slice(0,10);
+ const d=ds.filter(x=>x>=hoje)[0]||ds[ds.length-1];const G=d&&DATA.progs[d];const A=avisosDe(G);
+ $('#vgAv').hidden=!A.length;if(!A.length)return;$('#vgAvT').textContent='Programação de '+pd(d).toLocaleDateString('pt-BR',{weekday:'long',day:'2-digit',month:'2-digit'});$('#vgAvL').innerHTML=avisosHTML(G)}
 function progTab(){
  const ds=Object.keys(DATA.progs||{}).sort();const sel=$('#pgDate');if(sel.options.length!==ds.length){sel.innerHTML=ds.slice().reverse().map(d=>`<option value="${d}">${pd(d).toLocaleDateString('pt-BR',{weekday:'short',day:'2-digit',month:'2-digit'})}</option>`).join('');sel.onchange=progTab}
  const G=(DATA.progs||{})[sel.value]||DATA.prog;if(!G){$('#pgTitle').textContent='Programação';$('#pgSub').textContent='Nenhuma programação carregada.';return}
@@ -680,7 +696,7 @@ function progTab(){
  $('#pgTitle').textContent='Programação de '+dt.toLocaleDateString('pt-BR',{weekday:'long',day:'2-digit',month:'2-digit'});
  $('#pgSub').textContent=`Programação de Produção Diária do PCP · emitida ${G.emissao} · janelas calculadas pelos horários de cada turno (06:30 · 14:35 · 22:35)`;
  $('#pgWhen').textContent=dd===0?'Hoje':dd===1?'Amanhã':dd<0?`Há ${-dd} dia(s)`:`Em ${dd} dias`;
- $('#pgObs').innerHTML=G.obs.length?'<b>Observações do PCP:</b> '+G.obs.join(' · '):'';
+ $('#pgObs').innerHTML=avisosHTML(G);
  const ids=PROG_MAQ.filter(id=>mOk(M[id]));
  const on=ids.filter(id=>G.maquinas[id]),off=ids.filter(id=>!G.maquinas[id]);
  const J=[];on.forEach(id=>G.maquinas[id].janelas.forEach(j=>J.push({id,...j})));
@@ -703,7 +719,7 @@ function progTab(){
    d.janelas.forEach(j=>{if(j.min!=null){const ev=!['SEM PRODUÇÃO','PARADA SEM CIP'].includes(j.tipo);segs+=`<div class="gseg ${ev?'ev':'livre'}" style="left:${pc(j.ini)};width:${pc(j.min)}" title="${EVN[j.tipo]||j.tipo} · ${hm2(j.ini)}–${hm2(j.fim)} (${dur(j.min)}${j.padrao?', duração padrão':''})">${j.min>=120?EVN[j.tipo]||j.tipo:''}</div>`}
     else segs+=`<div class="gmark" style="left:calc(${pc([0,0,485,965][j.t])} + 4px)" title="${EVN[j.tipo]||j.tipo} no turno ${j.t} (duração não informada)"></div>`});}
   segs+=[485,965].map(x=>`<div class="gsep" style="left:${pc(x)}"></div>`).join('');
-  g+=`<div class="grow"><div class="glab"><b>${m.tag}</b> <span>${m.nome}</span></div><div class="gbar${d?'':' off'}">${d?segs:''}</div><div class="gmeta">${d?f1(d.horas)+' h prog.':'—'}${(()=>{const a=agNoDia(id,dstr);return a.length?`<br><span style="color:#7A4FC9" title="${a.map(e=>e.p.at).join(', ')}">${a.length} agendada${a.length>1?'s':''}</span>`:''})()}${venc(id)?`<br><span style="color:var(--venc)">${venc(id)} vencida${venc(id)>1?'s':''}</span>`:''}</div></div>`});
+  g+=`<div class="grow"><div class="glab"><b>${m.tag}</b>${avisosDe(G).filter(x=>(x.maq||[]).includes(id)).map(x=>`<em class="avchip ${x.tipo}" title="${x.txt.replace(/"/g,"'")}">${x.tipo==='manutencao'?'manutenção':'aviso'}</em>`).join('')} <span>${m.nome}</span></div><div class="gbar${d?'':' off'}">${d?segs:''}</div><div class="gmeta">${d?f1(d.horas)+' h prog.':'—'}${(()=>{const a=agNoDia(id,dstr);return a.length?`<br><span style="color:#7A4FC9" title="${a.map(e=>e.p.at).join(', ')}">${a.length} agendada${a.length>1?'s':''}</span>`:''})()}${venc(id)?`<br><span style="color:var(--venc)">${venc(id)} vencida${venc(id)>1?'s':''}</span>`:''}</div></div>`});
  $('#pgG').innerHTML=g;
  // janelas
  const card=(id,j,c,dia)=>{const m=M[id];const tipo=dia?'Dia inteiro sem programação':(EVN[j.tipo]||j.tipo);
