@@ -2625,3 +2625,42 @@
 2026-11-19;novembro;60L1;1290;programação PCP
 2026-11-19;novembro;60L2;1290;programação PCP
 2026-11-19;novembro;CONDOR;0;não programada
+2026-11-20;novembro;MESPACK A;1410;programação PCP
+2026-11-20;novembro;MESPACK B;1410;programação PCP
+2026-11-20;novembro;MESPACK C;1380;programação PCP
+2026-11-20;novembro;MESPACK D;1380;programação PCP
+2026-11-20;novembro;MESPACK E;1380;programação PCP
+2026-11-20;novembro;MESPACK F;1380;programação PCP
+2026-11-20;novembro;MESPACK R1;1410;programação PCP
+2026-11-20;novembro;MESPACK R2;1410;programação PCP
+2026-11-20;novembro;ENCHEDEIRA TOP DOWN;0;não programada
+2026-11-20;novembro;ENCHEDEIRA COPO/LATA;1320;CONFERIR: falha sem programação
+2026-11-20;novembro;60L1;0;não programada
+2026-11-20;novembro;60L2;1320;CONFERIR: falha sem programação
+2026-11-20;novembro;CONDOR;1290;programação PCP
+2026-11-21;novembro;MESPACK A;1440;programação PCP
+2026-11-21;novembro;MESPACK B;1440;programação PCP
+2026-11-21;novembro;MESPACK C;1200;programação PCP
+2026-11-21;novembro;MESPACK D;1200;programação PCP
+2026-11-21;novembro;MESPACK E;1110;programação PCP
+2026-11-21;novembro;MESPACK F;1110;programação PCP
+2026-11-21;novembro;MESPACK R1;1319;programação PCP
+2026-11-21;novembro;MESPACK R2;1319;programação PCP
+2026-11-21;novembro;ENCHEDEIRA TOP DOWN;1260;programação PCP
+2026-11-21;novembro;ENCHEDEIRA COPO/LATA;0;não programada
+2026-11-21;novembro;60L1;1440;programação PCP
+2026-11-21;novembro;60L2;1440;programação PCP
+2026-11-21;novembro;CONDOR;0;não programada
+2026-11-22;novembro;MESPACK A;1410;programação PCP
+2026-11-22;novembro;MESPACK B;1410;programação PCP
+2026-11-22;novembro;MESPACK C;1440;programação PCP
+2026-11-22;novembro;MESPACK D;1440;programação PCP
+2026-11-22;novembro;MESPACK E;1380;programação PCP
+2026-11-22;novembro;MESPACK F;1380;programação PCP
+2026-11-22;novembro;MESPACK R1;1400;programação PCP
+2026-11-22;novembro;MESPACK R2;1400;programação PCP
+2026-11-22;novembro;ENCHEDEIRA TOP DOWN;1440;programação PCP
+2026-11-22;novembro;ENCHEDEIRA COPO/LATA;0;não programada
+2026-11-22;novembro;60L1;965;programação PCP
+2026-11-22;novembro;60L2;965;programação PCP
+2026-11-22;novembro;CONDOR;0;não programada
